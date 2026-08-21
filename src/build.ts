@@ -10,6 +10,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { renderIndex } from "./template.js";
+import { LOCALES, type Localized } from "./i18n.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const HTML_DIR = path.join(ROOT, "html");
@@ -30,8 +31,9 @@ export interface Book {
   href: string;
   title: string;
   subtitle: string;
-  author: string;
-  blurb: string;
+  /** Absent → the locale's "House edition" label. */
+  author?: Localized;
+  blurb: Localized;
   shelf: string;
   minutes: number;
   spine: SpineLook;
@@ -44,7 +46,7 @@ export interface ShopConfig {
   shelfOrder: string[];
   books: Record<
     string,
-    { shelf?: string; blurb?: string; author?: string; title?: string; subtitle?: string }
+    { shelf?: string; blurb?: Localized; author?: Localized; title?: string; subtitle?: string }
   >;
 }
 
@@ -126,7 +128,7 @@ async function collectBooks(config: ShopConfig): Promise<Book[]> {
       href: `books/${file}`,
       title: meta.title ?? derived.title,
       subtitle: meta.subtitle ?? derived.subtitle,
-      author: meta.author ?? "House edition",
+      author: meta.author,
       blurb: meta.blurb ?? derived.subtitle ?? "An interactive volume from the Causeway press.",
       shelf: meta.shelf ?? DEFAULT_SHELF,
       minutes: readingMinutes(html),
@@ -168,10 +170,16 @@ async function main() {
     await cp(path.join(HTML_DIR, `${book.slug}.html`), path.join(DIST_DIR, book.href));
   }
 
-  await writeFile(path.join(DIST_DIR, "index.html"), renderIndex(config, shelves), "utf8");
+  for (const locale of LOCALES) {
+    const dir = locale.path ? path.join(DIST_DIR, locale.path) : DIST_DIR;
+    await mkdir(dir, { recursive: true });
+    await writeFile(path.join(dir, "index.html"), renderIndex(config, shelves, locale), "utf8");
+  }
 
   const size = (await stat(path.join(DIST_DIR, "index.html"))).size;
-  console.log(`built dist/ — ${books.length} book(s) on ${shelves.length} shelf(s), index ${size} bytes`);
+  console.log(
+    `built dist/ — ${books.length} book(s) on ${shelves.length} shelf(s), ${LOCALES.length} language(s), index ${size} bytes`,
+  );
 }
 
 main().catch((err) => {

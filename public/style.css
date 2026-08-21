@@ -52,6 +52,39 @@ a:focus-visible {
   isolation: isolate;
 }
 
+.lang-nav {
+  position: absolute;
+  top: 18px;
+  right: 22px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 2px 8px;
+  font-size: 0.72rem;
+  font-weight: 400;
+  letter-spacing: 0.06em;
+}
+
+.lang-nav a {
+  color: var(--paper-shadow);
+  text-decoration: none;
+  padding: 3px 2px;
+  border-bottom: 1px solid transparent;
+  transition: color 0.25s, border-color 0.25s;
+}
+
+.lang-nav a:hover { color: var(--brass-bright); }
+
+.lang-now {
+  color: var(--brass-bright);
+  padding: 3px 2px;
+  border-bottom: 1px solid var(--brass);
+}
+
+.lang-dot { color: var(--faint); }
+
 .hero-scrim {
   position: absolute;
   inset: 0;

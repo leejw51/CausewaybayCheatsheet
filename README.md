@@ -31,6 +31,21 @@ tag, add an entry in `books.config.json`:
 
 Books without an entry appear on the **New Arrivals** shelf.
 
+## Languages
+
+The shelf page is generated in six languages — English (`/`), Korean (`/ko/`),
+Cantonese (`/yue/`), Chinese (`/zh/`), Japanese (`/ja/`), and Czech (`/cs/`) —
+with a switcher above the hero. UI strings live in `src/i18n.ts`; a book's
+`blurb` (or `author`) in `books.config.json` can be either a single string or a
+per-locale map:
+
+```json
+"blurb": { "en": "…", "ko": "…", "yue": "…", "zh": "…", "ja": "…", "cs": "…" }
+```
+
+Locales missing from the map fall back to English. The book files themselves
+are served unmodified in whatever language they were written.
+
 ## Cloudflare Pages
 
 Connect the repo in the Cloudflare dashboard with:
