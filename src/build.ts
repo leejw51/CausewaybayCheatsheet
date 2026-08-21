@@ -103,7 +103,7 @@ function readingMinutes(html: string): number {
 
 async function loadConfig(): Promise<ShopConfig> {
   const fallback: ShopConfig = {
-    shopName: "Causeway Books",
+    shopName: "Causewaybay Books",
     shopNameCzech: "Knihkupectví u Mostu",
     tagline: "Interactive little books, kept the old way.",
     shelfOrder: [],
@@ -129,7 +129,7 @@ async function collectBooks(config: ShopConfig): Promise<Book[]> {
       title: meta.title ?? derived.title,
       subtitle: meta.subtitle ?? derived.subtitle,
       author: meta.author,
-      blurb: meta.blurb ?? derived.subtitle ?? "An interactive volume from the Causeway press.",
+      blurb: meta.blurb ?? derived.subtitle ?? "An interactive volume from the Causewaybay press.",
       shelf: meta.shelf ?? DEFAULT_SHELF,
       minutes: readingMinutes(html),
       spine: spineFor(slug),

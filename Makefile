@@ -1,4 +1,4 @@
-# Causeway Books — build & serve
+# Causewaybay Books — build & serve
 #
 #   make        build the site into dist/
 #   make start  build, then serve dist/ at http://localhost:8788 (background)
@@ -24,7 +24,7 @@ start: build stop
 	@PORT=$(PORT) nohup npx tsx src/serve.ts >> $(LOG_FILE) 2>&1 &
 	@sleep 2
 	@if [ -f $(PID_FILE) ]; then \
-		echo "Causeway Books open at http://localhost:$(PORT) (pid `cat $(PID_FILE)`)"; \
+		echo "Causewaybay Books open at http://localhost:$(PORT) (pid `cat $(PID_FILE)`)"; \
 	else \
 		echo "server failed to start — see $(LOG_FILE)"; exit 1; \
 	fi
@@ -39,7 +39,7 @@ stop:
 	fi
 
 deploy: build
-	npx wrangler pages deploy dist --project-name=causeway-books
+	npx wrangler pages deploy dist --project-name=causewaybay-books
 
 clean: stop
 	rm -rf dist $(LOG_FILE)

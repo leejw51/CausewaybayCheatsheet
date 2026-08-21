@@ -29,7 +29,7 @@ function renderBook(book: Book, locale: LocaleDef): string {
               <span class="band band-bottom"></span>
             </span>
             <span class="cover">
-              <span class="cover-press">Causeway Books</span>
+              <span class="cover-press">Causewaybay Books</span>
               <span class="cover-title">${esc(book.title)}</span>
               ${sub}
               <span class="cover-orn">&#10087;</span>
