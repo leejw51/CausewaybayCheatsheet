@@ -1,0 +1,1473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Tensor Shape Quest — Batches to Transformers</title>
+<style>
+  :root{
+    --bg:#0B1120; --surface:#111A2E; --surface-2:#0E1626;
+    --line:rgba(148,163,184,0.10); --grid:rgba(148,163,184,0.05);
+    --text:#E7ECF5; --text-dim:#8593AC; --text-faint:#5B6B87;
+    --cyan:#38BDF8; --cyan-dim:rgba(56,189,248,0.12);
+    --amber:#F5A623; --amber-dim:rgba(245,166,35,0.14);
+    --red:#FB7185; --red-dim:rgba(251,113,133,0.14);
+    --green:#4ADE80; --green-dim:rgba(74,222,128,0.12);
+    --violet:#A78BFA; --violet-dim:rgba(167,139,250,0.14);
+    --mono:'SFMono-Regular',ui-monospace,'JetBrains Mono',Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      linear-gradient(var(--grid) 1px, transparent 1px) 0 0/28px 28px,
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px) 0 0/28px 28px,
+      var(--bg);
+    color:var(--text); font-family:var(--sans); -webkit-font-smoothing:antialiased;
+    padding:28px 16px 90px; overflow-x:hidden;
+  }
+  .page{max-width:860px;margin:0 auto;}
+
+  /* ---------- header / HUD ---------- */
+  header{margin-bottom:18px;}
+  .top-row{display:flex; justify-content:space-between; align-items:flex-start; gap:14px; flex-wrap:wrap;}
+  .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--amber);margin:0 0 10px;}
+  h1{font-family:var(--mono);font-size:clamp(20px,5vw,28px);line-height:1.3;margin:0 0 10px;font-weight:700;}
+  h1 span{color:var(--cyan);}
+  header p.desc{color:var(--text-dim);font-size:14px;line-height:1.65;margin:0;max-width:62ch;}
+
+  .lang-toggle{display:flex; gap:3px; background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:3px; flex-wrap:wrap;}
+  .lang-toggle button{
+    font-family:var(--mono); font-size:11px; letter-spacing:.02em; padding:6px 9px;
+    background:transparent; border:none; border-radius:6px; color:var(--text-faint); cursor:pointer;
+  }
+  .lang-toggle button.active{background:var(--cyan-dim); color:var(--cyan);}
+
+  .hud{
+    display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+    background:var(--surface); border:1px solid var(--line); border-radius:12px;
+    padding:10px 14px; margin:16px 0 0; font-family:var(--mono);
+  }
+  .hud .stat{display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text-dim);}
+  .hud .stat b{color:var(--text); font-size:14px;}
+  .hud .stat .ico{font-size:14px;}
+  .xp-wrap{flex:1; min-width:120px;}
+  .xp-bar{height:6px; border-radius:3px; background:#22304A; overflow:hidden;}
+  .xp-fill{height:100%; width:0%; border-radius:3px;
+    background:linear-gradient(90deg,var(--cyan),var(--violet)); transition:width .5s ease;}
+  .level-name{font-size:11px; color:var(--violet); letter-spacing:.04em;}
+  .hud .stat b.bump{animation:bump .4s ease;}
+  @keyframes bump{0%{transform:scale(1);}40%{transform:scale(1.45); color:var(--green);}100%{transform:scale(1);}}
+
+  /* ---------- tabs ---------- */
+  nav.tabs{display:flex; gap:6px; flex-wrap:wrap; margin:20px 0 24px; border-bottom:1px solid var(--line);}
+  nav.tabs button{background:transparent; border:none; color:var(--text-faint); font-family:var(--mono); font-size:12px; padding:10px 4px; cursor:pointer; border-bottom:2px solid transparent; transition:color .15s;}
+  nav.tabs button:hover{color:var(--text-dim);}
+  nav.tabs button.active{color:var(--cyan); border-bottom-color:var(--cyan);}
+
+  section.tabpanel{display:none;}
+  section.tabpanel.active{display:block; animation:fade .3s ease;}
+  @keyframes fade{from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:translateY(0);}}
+
+  h2.sec-title{font-family:var(--mono); font-size:16px; margin:4px 0 6px; color:var(--text);}
+  p.sec-desc{color:var(--text-dim); font-size:13.5px; line-height:1.65; margin:0 0 20px; max-width:66ch;}
+
+  .panel{background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:18px; margin:0 0 20px;}
+  .panel-title{font-family:var(--mono); font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--text-faint); margin:0 0 14px;}
+
+  .ctrl-grid{display:grid; grid-template-columns:1fr 1fr; gap:14px 18px;}
+  @media (max-width:520px){.ctrl-grid{grid-template-columns:1fr;}}
+  .ctrl label{display:flex; justify-content:space-between; font-size:13px; color:var(--text-dim); margin-bottom:6px;}
+  .ctrl label span.sym{font-family:var(--mono); color:var(--text);}
+  .ctrl label span.val{font-family:var(--mono); color:var(--cyan); font-weight:600;}
+  input[type=range]{width:100%; appearance:none; height:4px; border-radius:2px;
+    background:linear-gradient(90deg,var(--cyan) 0%,var(--cyan) var(--pct,50%),#22304A var(--pct,50%),#22304A 100%); outline:none;}
+  input[type=range]::-webkit-slider-thumb{appearance:none;width:15px;height:15px;border-radius:50%;background:var(--text);border:3px solid var(--cyan);cursor:pointer;}
+  select{width:100%; background:var(--surface-2); color:var(--text); border:1px solid var(--line); border-radius:6px; padding:6px 8px; font-family:var(--mono); font-size:13px;}
+  input[type=text]{width:100%; background:var(--surface-2); color:var(--text); border:1px solid var(--line); border-radius:6px; padding:9px 11px; font-family:var(--mono); font-size:14px;}
+  input[type=text]:focus{outline:none; border-color:var(--cyan);}
+
+  .summary{font-family:var(--mono); font-size:12.5px; color:var(--text-dim); padding:12px 0 4px; border-top:1px dashed var(--line); margin-top:14px;}
+  .summary b{color:var(--text);}
+  .warn{display:none; margin:10px 0 4px; padding:10px 12px; border-radius:8px; background:var(--red-dim); border:1px solid rgba(251,113,133,0.35); color:#FFD9DF; font-size:12.5px; font-family:var(--mono); line-height:1.5;}
+  .warn.show{display:block; animation:shake .35s ease;}
+  @keyframes shake{0%,100%{transform:translateX(0);}25%{transform:translateX(-4px);}75%{transform:translateX(4px);}}
+  .ok-box{display:none; margin:10px 0 4px; padding:10px 12px; border-radius:8px; background:var(--green-dim); border:1px solid rgba(74,222,128,0.35); color:#D5FFE4; font-size:13px; font-family:var(--mono); line-height:1.5;}
+  .ok-box.show{display:block; animation:pop .3s ease;}
+  @keyframes pop{0%{transform:scale(.96); opacity:0;}100%{transform:scale(1); opacity:1;}}
+
+  .legend{display:flex; gap:18px; flex-wrap:wrap; font-size:12px; color:var(--text-dim); margin:0 0 20px; font-family:var(--mono);}
+  .legend span{display:inline-flex; align-items:center; gap:6px;}
+  .dot{width:8px;height:8px;border-radius:50%;display:inline-block;}
+  .dot.cyan{background:var(--cyan);} .dot.amber{background:var(--amber);}
+
+  /* ---------- stages ---------- */
+  .stage{background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:16px 16px 18px; margin-bottom:14px;
+    transition:border-color .25s, box-shadow .25s, transform .25s;}
+  .stage.flash{border-color:var(--cyan); box-shadow:0 0 0 1px var(--cyan), 0 0 26px rgba(56,189,248,.28); transform:translateY(-2px);}
+  .stage-head{display:flex; align-items:baseline; gap:10px; margin-bottom:6px; flex-wrap:wrap;}
+  .stage-tag{font-family:var(--mono); font-size:10.5px; color:var(--amber); border:1px solid rgba(245,166,35,.35); border-radius:4px; padding:1px 6px;}
+  .stage-head h3{font-size:14px; margin:0; font-weight:600;}
+  .stage-caption{color:var(--text-dim); font-size:12.5px; line-height:1.55; margin:0 0 14px;}
+  .flow-row{display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
+  .tbox{background:var(--surface-2); border:1px solid var(--line); border-radius:10px; padding:8px 10px;}
+  .tbox-label{font-family:var(--mono); font-size:11px; color:var(--text-faint); margin-bottom:6px;}
+  .tbox-dims{display:flex; align-items:center; gap:3px;}
+  .cell{display:flex; flex-direction:column; align-items:center; padding:3px 7px; border-radius:6px; min-width:32px; transition:transform .2s;}
+  .cell:hover{transform:scale(1.12);}
+  .cell .sym{font-family:var(--mono); font-size:9.5px; opacity:.8;}
+  .cell .val{font-family:var(--mono); font-size:14px; font-weight:700;}
+  .cell.r-batch{color:var(--cyan); background:var(--cyan-dim);}
+  .cell.r-contract{color:var(--amber); background:var(--amber-dim);}
+  .cell.r-free{color:var(--text); background:transparent;}
+  .cell.r-warn{color:var(--red); background:var(--red-dim);}
+  .op{display:flex; flex-direction:column; align-items:center; gap:3px; padding:0 2px;}
+  .op-sym{font-family:var(--mono); font-size:17px; color:var(--text-faint);}
+  .op-badge{font-family:var(--mono); font-size:10px; padding:1px 6px; border-radius:5px; white-space:nowrap;}
+  .op-badge.ok{color:var(--amber); background:var(--amber-dim); border:1px solid rgba(245,166,35,.3);}
+  .op-badge.bad{color:var(--red); background:var(--red-dim); border:1px solid rgba(251,113,133,.35);}
+  .reshape{font-family:var(--mono); font-size:12px; color:var(--cyan); background:var(--cyan-dim); border:1px dashed rgba(56,189,248,.4); border-radius:8px; padding:8px 12px; margin:10px 0 0; display:inline-block;}
+
+  table{width:100%; border-collapse:collapse; font-family:var(--mono); font-size:12.5px;}
+  th,td{text-align:left; padding:8px 10px; border-bottom:1px solid var(--line);}
+  th{color:var(--text-faint); font-weight:500; font-size:11px; text-transform:uppercase; letter-spacing:.05em;}
+  td{color:var(--text-dim);}
+  td.res{color:var(--cyan); font-weight:600;}
+  tr.err td.res{color:var(--red);}
+  .preset-row{display:flex; gap:6px; flex-wrap:wrap; margin:12px 0 0;}
+  .preset{font-family:var(--mono); font-size:11px; background:var(--surface-2); border:1px solid var(--line); color:var(--text-dim); padding:5px 9px; border-radius:6px; cursor:pointer; transition:all .15s;}
+  .preset:hover{border-color:var(--cyan); color:var(--cyan); transform:translateY(-1px);}
+
+  .formula{font-family:var(--mono); font-size:16px; background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:14px 18px; margin:6px 0 16px; color:var(--text);}
+  .formula .b{color:var(--amber);}
+  .compare{display:grid; grid-template-columns:1fr 1fr; gap:12px; margin:0 0 18px;}
+  @media (max-width:520px){.compare{grid-template-columns:1fr;}}
+  .compare .card{background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:14px; transition:transform .2s, border-color .2s;}
+  .compare .card:hover{transform:translateY(-3px); border-color:rgba(56,189,248,.35);}
+  .compare .card h4{margin:0 0 8px; font-size:12.5px; font-family:var(--mono); color:var(--text-faint); text-transform:uppercase; letter-spacing:.06em;}
+  .compare .card .f{font-family:var(--mono); font-size:16px; margin-bottom:8px;}
+  .compare .card p{font-size:12.5px; color:var(--text-dim); line-height:1.55; margin:0;}
+
+  .sub{margin:22px 0 0;}
+  .sub h3{font-family:var(--mono); font-size:13.5px; color:var(--cyan); margin:0 0 8px; display:flex; align-items:center; gap:8px;}
+  .sub h3::before{content:""; width:12px; height:1px; background:var(--cyan);}
+  .sub p{color:var(--text-dim); font-size:13px; line-height:1.7; margin:0 0 10px;}
+  .sub ul{margin:0 0 10px; padding-left:18px; color:var(--text-dim); font-size:13px; line-height:1.7;}
+  .sub li{margin-bottom:6px;}
+  .sub li b{color:var(--text);}
+  .callout{background:var(--amber-dim); border:1px solid rgba(245,166,35,.3); border-radius:10px; padding:12px 14px; font-size:12.5px; color:#FFE9C7; line-height:1.6; margin:14px 0 0;}
+  .example-box{background:var(--surface-2); border:1px solid var(--line); border-radius:10px; padding:12px 14px; margin:8px 0 12px; font-size:12.5px; color:var(--text-dim); line-height:1.7;}
+  .example-box b{color:var(--text);}
+
+  /* ---------- buttons ---------- */
+  .btn{font-family:var(--mono); font-size:12.5px; border-radius:8px; padding:9px 16px; cursor:pointer; border:1px solid var(--line); transition:all .15s;}
+  .btn-primary{background:var(--cyan-dim); color:var(--cyan); border-color:rgba(56,189,248,.35);}
+  .btn-primary:hover{background:rgba(56,189,248,.22); transform:translateY(-1px);}
+  .btn-danger{background:var(--red-dim); color:var(--red); border-color:rgba(251,113,133,.35);}
+  .btn-danger:hover{background:rgba(251,113,133,.22);}
+  .btn-ghost{background:transparent; color:var(--text-dim);}
+  .btn-ghost:hover{color:var(--text); border-color:var(--text-faint);}
+
+  /* ---------- architecture svg ---------- */
+  .arch-wrap{overflow-x:auto;}
+  .arch-wrap svg{display:block; min-width:560px; width:100%; height:auto;}
+  .arch-block{fill:var(--surface-2); stroke:rgba(148,163,184,0.25); stroke-width:1; rx:10;}
+  .arch-block.attn{stroke:rgba(56,189,248,.5);}
+  .arch-block.ffn{stroke:rgba(245,166,35,.5);}
+  .arch-block.norm{stroke:rgba(167,139,250,.5);}
+  .arch-label{font-family:var(--mono); font-size:11px; fill:var(--text); font-weight:600;}
+  .arch-sub{font-family:var(--mono); font-size:9px; fill:var(--text-faint);}
+  .arch-shape{font-family:var(--mono); font-size:9.5px; fill:var(--cyan);}
+  .arch-path{stroke:rgba(148,163,184,.4); stroke-width:1.5; fill:none; stroke-dasharray:5 4; animation:dashmove 1.2s linear infinite;}
+  .arch-path.residual{stroke:rgba(167,139,250,.5);}
+  @keyframes dashmove{to{stroke-dashoffset:-9;}}
+
+  /* ---------- quiz ---------- */
+  .quiz-q{
+    font-family:var(--mono); font-size:clamp(16px,3.6vw,22px); text-align:center;
+    padding:26px 16px; background:var(--surface-2); border:1px solid var(--line);
+    border-radius:12px; margin:0 0 14px; letter-spacing:.02em;
+  }
+  .quiz-q .qa{color:var(--cyan);} .quiz-q .qop{color:var(--text-faint); padding:0 8px;} .quiz-q .qb{color:var(--amber);}
+  .quiz-input-row{display:flex; gap:8px; flex-wrap:wrap; align-items:center;}
+  .quiz-input-row input{flex:1; min-width:170px;}
+  .quiz-feedback{min-height:44px; margin-top:12px;}
+  .quiz-history{display:flex; gap:5px; flex-wrap:wrap; margin-top:14px;}
+  .quiz-history .h{width:12px; height:12px; border-radius:3px; background:#22304A;}
+  .quiz-history .h.good{background:var(--green);}
+  .quiz-history .h.bad{background:var(--red);}
+  .badge-row{display:flex; gap:8px; flex-wrap:wrap; margin-top:14px;}
+  .badge{font-family:var(--mono); font-size:11px; padding:4px 10px; border-radius:999px; border:1px solid var(--line); color:var(--text-faint); opacity:.35;}
+  .badge.earned{opacity:1; color:var(--violet); border-color:rgba(167,139,250,.4); background:var(--violet-dim); animation:pop .3s ease;}
+
+  /* ---------- particles ---------- */
+  .particle{position:fixed; width:8px; height:8px; border-radius:2px; pointer-events:none; z-index:999;}
+
+  /* ---------- code ---------- */
+  .code-wrap{position:relative; background:var(--surface); border:1px solid var(--line); border-radius:12px; overflow:hidden; margin:0 0 20px;}
+  .code-head{display:flex; justify-content:space-between; align-items:center; padding:10px 14px; border-bottom:1px solid var(--line); background:var(--surface-2); gap:10px; flex-wrap:wrap;}
+  .code-head span{font-family:var(--mono); font-size:11.5px; color:var(--text-faint);}
+  .copy-btn{font-family:var(--mono); font-size:11px; background:var(--cyan-dim); color:var(--cyan); border:1px solid rgba(56,189,248,.3); border-radius:6px; padding:5px 10px; cursor:pointer;}
+  .copy-btn:hover{background:rgba(56,189,248,.2);}
+  .copy-btn.copied{background:var(--green-dim); color:var(--green); border-color:rgba(74,222,128,.3);}
+  pre.code-block{margin:0; padding:16px; overflow-x:auto; font-family:var(--mono); font-size:12px; line-height:1.6; color:var(--text-dim); max-height:520px;}
+
+  footer{margin-top:40px; padding-top:16px; border-top:1px solid var(--line); color:var(--text-faint); font-size:11.5px; font-family:var(--mono);}
+
+  @media (prefers-reduced-motion: reduce){
+    *{animation:none !important; transition:none !important;}
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header>
+    <div class="top-row">
+      <div>
+        <p class="eyebrow">TENSOR SHAPE QUEST</p>
+        <h1 id="mainTitle"></h1>
+      </div>
+      <div class="lang-toggle" id="langToggle">
+        <button data-lang="en">EN</button>
+        <button data-lang="ko">한국어</button>
+        <button data-lang="yue">粵語</button>
+        <button data-lang="zh">中文</button>
+        <button data-lang="ja">日本語</button>
+        <button data-lang="cs">ČEŠTINA</button>
+      </div>
+    </div>
+    <p class="desc" data-i18n="desc"></p>
+
+    <div class="hud">
+      <div class="stat"><span class="ico">⚡</span><span data-i18n="xpLabel"></span> <b id="xpVal">0</b></div>
+      <div class="stat"><span class="ico">🔥</span><span data-i18n="streakLabel"></span> <b id="streakVal">0</b></div>
+      <div class="xp-wrap">
+        <div class="level-name" id="levelName"></div>
+        <div class="xp-bar"><div class="xp-fill" id="xpFill"></div></div>
+      </div>
+    </div>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab-btn active" data-tab="basic" data-i18n="tab1"></button>
+    <button class="tab-btn" data-tab="pytorch" data-i18n="tab2"></button>
+    <button class="tab-btn" data-tab="transformer" data-i18n="tab3"></button>
+    <button class="tab-btn" data-tab="affine" data-i18n="tab4"></button>
+    <button class="tab-btn" data-tab="quiz" data-i18n="tab5"></button>
+    <button class="tab-btn" data-tab="pytest" data-i18n="tab6"></button>
+  </nav>
+
+  <!-- ============ TAB 1: BASIC ============ -->
+  <section class="tabpanel active" id="tab-basic">
+    <h2 class="sec-title" data-i18n="t1Title"></h2>
+    <p class="sec-desc" data-i18n="t1Desc"></p>
+
+    <div class="panel">
+      <p class="panel-title" data-i18n="paramsTitle"></p>
+      <div class="ctrl-grid">
+        <div class="ctrl">
+          <label><span class="sym" data-i18n="nLabel"></span><span class="val" id="vN"></span></label>
+          <input type="range" id="N" min="1" max="2048" value="100" step="1">
+        </div>
+      </div>
+      <div class="preset-row">
+        <button class="preset" data-n="1" data-i18n="presetSingle"></button>
+        <button class="preset" data-n="100">N=100</button>
+        <button class="preset" data-n="768">N=768</button>
+        <button class="preset" data-n="1000">N=1000</button>
+        <button class="preset" data-n="2000">N=2000</button>
+      </div>
+    </div>
+
+    <div class="legend">
+      <span><span class="dot cyan"></span><span data-i18n="legendBatch"></span></span>
+      <span><span class="dot amber"></span><span data-i18n="legendContract"></span></span>
+    </div>
+
+    <div id="basicFlow"></div>
+
+    <div class="panel">
+      <p class="panel-title" data-i18n="whyBatchTitle"></p>
+      <p class="sec-desc" style="margin:0;" data-i18n="whyBatchBody"></p>
+    </div>
+  </section>
+
+  <!-- ============ TAB 2: PYTORCH ============ -->
+  <section class="tabpanel" id="tab-pytorch">
+    <h2 class="sec-title" data-i18n="t2Title"></h2>
+    <p class="sec-desc" data-i18n-html="t2Desc"></p>
+
+    <div class="panel">
+      <p class="panel-title" data-i18n="checkerTitle"></p>
+      <div class="ctrl-grid">
+        <div class="ctrl">
+          <label><span class="sym">A shape</span></label>
+          <input type="text" id="shapeA" value="100,20,30">
+        </div>
+        <div class="ctrl">
+          <label><span class="sym">B shape</span></label>
+          <input type="text" id="shapeB" value="30,50">
+        </div>
+      </div>
+      <div class="preset-row">
+        <button class="preset" data-a="100,20,30" data-b="30,50" data-i18n="pBroadcast"></button>
+        <button class="preset" data-a="100,20,30" data-b="100,30,50" data-i18n="pExact"></button>
+        <button class="preset" data-a="100,20,30" data-b="1,30,50" data-i18n="pOne"></button>
+        <button class="preset" data-a="8,100,20,30" data-b="30,50" data-i18n="pMulti"></button>
+        <button class="preset" data-a="100,20,30" data-b="30" data-i18n="pB1d"></button>
+        <button class="preset" data-a="30" data-b="100,30,50" data-i18n="pA1d"></button>
+        <button class="preset" data-a="100,20,30" data-b="64,30,50" data-i18n="pErr"></button>
+      </div>
+      <div class="ok-box" id="checkerOk"></div>
+      <div class="warn" id="checkerWarn"></div>
+    </div>
+
+    <div class="panel">
+      <p class="panel-title" data-i18n="casesTitle"></p>
+      <table>
+        <tr><th>A</th><th>B</th><th data-i18n="thResult"></th><th data-i18n="thExplain"></th></tr>
+        <tr><td>(100,20,30)</td><td>(30,50)</td><td class="res">(100,20,50)</td><td data-i18n="row1"></td></tr>
+        <tr><td>(100,20,30)</td><td>(100,30,50)</td><td class="res">(100,20,50)</td><td data-i18n="row2"></td></tr>
+        <tr><td>(100,20,30)</td><td>(1,30,50)</td><td class="res">(100,20,50)</td><td data-i18n="row3"></td></tr>
+        <tr><td>(8,100,20,30)</td><td>(30,50)</td><td class="res">(8,100,20,50)</td><td data-i18n="row4"></td></tr>
+        <tr><td>(100,20,30)</td><td>(30,)</td><td class="res">(100,20)</td><td data-i18n="row5"></td></tr>
+        <tr><td>(30,)</td><td>(100,30,50)</td><td class="res">(100,50)</td><td data-i18n="row6"></td></tr>
+        <tr class="err"><td>(100,20,30)</td><td>(64,30,50)</td><td class="res" data-i18n="errWord"></td><td data-i18n="row7"></td></tr>
+      </table>
+    </div>
+  </section>
+
+  <!-- ============ TAB 3: TRANSFORMER ============ -->
+  <section class="tabpanel" id="tab-transformer">
+    <h2 class="sec-title" data-i18n="t3Title"></h2>
+    <p class="sec-desc" data-i18n="t3Desc"></p>
+
+    <div class="panel">
+      <p class="panel-title" data-i18n="archTitle"></p>
+      <p class="sec-desc" style="margin:0 0 12px;" data-i18n="archDesc"></p>
+      <div class="arch-wrap">
+        <svg viewBox="0 0 700 210" xmlns="http://www.w3.org/2000/svg" aria-label="transformer block architecture">
+          <defs>
+            <marker id="arr" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto">
+              <path d="M0,0 L8,4 L0,8 z" fill="rgba(148,163,184,.5)"/>
+            </marker>
+          </defs>
+          <!-- main flow path -->
+          <path class="arch-path" d="M60,105 L120,105" marker-end="url(#arr)"/>
+          <path class="arch-path" d="M240,105 L286,105" marker-end="url(#arr)"/>
+          <path class="arch-path" d="M366,105 L412,105" marker-end="url(#arr)"/>
+          <path class="arch-path" d="M532,105 L578,105" marker-end="url(#arr)"/>
+          <!-- residual paths -->
+          <path class="arch-path residual" d="M90,105 C90,40 300,40 326,88"/>
+          <path class="arch-path residual" d="M326,122 C340,175 460,175 472,122"/>
+          <!-- input -->
+          <circle cx="45" cy="105" r="17" fill="rgba(56,189,248,.12)" stroke="rgba(56,189,248,.5)"/>
+          <text x="45" y="109" text-anchor="middle" class="arch-label">X</text>
+          <text x="45" y="140" text-anchor="middle" class="arch-shape">(B,S,D)</text>
+          <!-- attention -->
+          <rect class="arch-block attn" x="120" y="70" width="120" height="70" rx="10"/>
+          <text x="180" y="98" text-anchor="middle" class="arch-label">Multi-Head</text>
+          <text x="180" y="112" text-anchor="middle" class="arch-label">Attention</text>
+          <text x="180" y="128" text-anchor="middle" class="arch-sub">Q·Kᵀ·V</text>
+          <text x="180" y="155" text-anchor="middle" class="arch-shape">(B,h,S,d_k)</text>
+          <!-- add & norm 1 -->
+          <rect class="arch-block norm" x="286" y="82" width="80" height="46" rx="10"/>
+          <text x="326" y="101" text-anchor="middle" class="arch-label">Add &amp;</text>
+          <text x="326" y="115" text-anchor="middle" class="arch-label">Norm</text>
+          <!-- ffn -->
+          <rect class="arch-block ffn" x="412" y="70" width="120" height="70" rx="10"/>
+          <text x="472" y="98" text-anchor="middle" class="arch-label">Feed</text>
+          <text x="472" y="112" text-anchor="middle" class="arch-label">Forward</text>
+          <text x="472" y="128" text-anchor="middle" class="arch-sub">D→D_ff→D</text>
+          <text x="472" y="155" text-anchor="middle" class="arch-shape">(B,S,D_ff)</text>
+          <!-- output -->
+          <circle cx="620" cy="105" r="17" fill="rgba(245,166,35,.12)" stroke="rgba(245,166,35,.5)"/>
+          <text x="620" y="109" text-anchor="middle" class="arch-label">Y</text>
+          <text x="620" y="140" text-anchor="middle" class="arch-shape">(B,S,D)</text>
+          <!-- flow dots -->
+          <circle r="4" fill="#38BDF8">
+            <animateMotion dur="4s" repeatCount="indefinite"
+              path="M60,105 L120,105 L240,105 L286,105 L366,105 L412,105 L532,105 L600,105"/>
+          </circle>
+          <circle r="3" fill="#A78BFA" opacity=".8">
+            <animateMotion dur="4s" begin="2s" repeatCount="indefinite"
+              path="M60,105 L120,105 L240,105 L286,105 L366,105 L412,105 L532,105 L600,105"/>
+          </circle>
+        </svg>
+      </div>
+    </div>
+
+    <div class="panel">
+      <p class="panel-title" data-i18n="paramsTitle"></p>
+      <div class="ctrl-grid">
+        <div class="ctrl"><label><span class="sym">B — batch</span><span class="val" id="vB"></span></label><input type="range" id="B" min="1" max="128" value="32"></div>
+        <div class="ctrl"><label><span class="sym">S — sequence</span><span class="val" id="vS"></span></label><input type="range" id="S" min="1" max="512" value="16"></div>
+        <div class="ctrl"><label><span class="sym">D — embedding</span><span class="val" id="vD"></span></label><input type="range" id="D" min="16" max="1024" value="512" step="16"></div>
+        <div class="ctrl"><label><span class="sym">h — heads</span><span class="val" id="vH"></span></label>
+          <select id="H"><option>1</option><option>2</option><option>4</option><option selected>8</option><option>12</option><option>16</option></select>
+        </div>
+        <div class="ctrl" style="grid-column:1/-1;"><label><span class="sym">D_ff — FFN inner dim</span><span class="val" id="vDff"></span></label><input type="range" id="Dff" min="64" max="4096" value="2048" step="64"></div>
+      </div>
+      <div class="warn" id="tWarn"></div>
+      <div class="summary" id="tSummary"></div>
+      <div style="margin-top:14px;">
+        <button class="btn btn-primary" id="playFlowBtn" data-i18n="playFlow"></button>
+      </div>
+    </div>
+
+    <div class="legend">
+      <span><span class="dot cyan"></span><span data-i18n="legendBatch2"></span></span>
+      <span><span class="dot amber"></span><span data-i18n="legendContract"></span></span>
+    </div>
+
+    <div id="ffnStages"></div>
+    <div id="attnStages"></div>
+  </section>
+
+  <!-- ============ TAB 4: AFFINE ============ -->
+  <section class="tabpanel" id="tab-affine">
+    <h2 class="sec-title" data-i18n="t4Title"></h2>
+    <p class="sec-desc" data-i18n="t4Desc"></p>
+
+    <div class="compare">
+      <div class="card">
+        <h4>Linear</h4>
+        <div class="f">y = <span style="color:var(--cyan)">Wx</span></div>
+        <p data-i18n="linearCard"></p>
+      </div>
+      <div class="card">
+        <h4>Affine</h4>
+        <div class="f">y = <span style="color:var(--cyan)">Wx</span> + <span style="color:var(--amber)">b</span></div>
+        <p data-i18n="affineCard"></p>
+      </div>
+    </div>
+
+    <div class="panel">
+      <p class="panel-title" data-i18n="nnTitle"></p>
+      <div class="formula">Y = X @ W <span class="b">+ b</span></div>
+      <p class="sec-desc" style="margin:0;" data-i18n-html="nnBody"></p>
+    </div>
+
+    <div class="panel">
+      <p class="panel-title" data-i18n="deepTitle"></p>
+
+      <div class="sub">
+        <h3 data-i18n="d1Title"></h3>
+        <p data-i18n="d1Body"></p>
+      </div>
+
+      <div class="sub">
+        <h3 data-i18n="d2Title"></h3>
+        <p data-i18n="d2Body"></p>
+        <div class="example-box" data-i18n-html="d2Example"></div>
+      </div>
+
+      <div class="sub">
+        <h3 data-i18n="d3Title"></h3>
+        <ul>
+          <li data-i18n-html="d3a"></li>
+          <li data-i18n-html="d3b"></li>
+          <li data-i18n-html="d3c"></li>
+          <li data-i18n-html="d3d"></li>
+        </ul>
+      </div>
+
+      <div class="sub">
+        <h3 data-i18n="d4Title"></h3>
+        <p data-i18n-html="d4Body"></p>
+      </div>
+
+      <div class="callout" data-i18n-html="dCallout"></div>
+    </div>
+  </section>
+
+  <!-- ============ TAB 5: QUIZ ============ -->
+  <section class="tabpanel" id="tab-quiz">
+    <h2 class="sec-title" data-i18n="t5Title"></h2>
+    <p class="sec-desc" data-i18n="t5Desc"></p>
+
+    <div class="panel">
+      <p class="panel-title" data-i18n="quizPanelTitle"></p>
+      <div class="quiz-q" id="quizQ"></div>
+      <div class="quiz-input-row">
+        <input type="text" id="quizAnswer" data-i18n-ph="quizPlaceholder" autocomplete="off">
+        <button class="btn btn-primary" id="quizCheck" data-i18n="quizCheck"></button>
+        <button class="btn btn-danger" id="quizError" data-i18n="quizErrorBtn"></button>
+        <button class="btn btn-ghost" id="quizNext" data-i18n="quizNext"></button>
+      </div>
+      <div class="quiz-feedback">
+        <div class="ok-box" id="quizOk"></div>
+        <div class="warn" id="quizWarn"></div>
+      </div>
+      <div class="quiz-history" id="quizHistory"></div>
+      <div class="badge-row">
+        <span class="badge" id="badge1">🥉 <span data-i18n="badge1"></span></span>
+        <span class="badge" id="badge2">🥈 <span data-i18n="badge2"></span></span>
+        <span class="badge" id="badge3">🥇 <span data-i18n="badge3"></span></span>
+        <span class="badge" id="badge4">🏆 <span data-i18n="badge4"></span></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ TAB 6: PYTHON ============ -->
+  <section class="tabpanel" id="tab-pytest">
+    <h2 class="sec-title" data-i18n="t6Title"></h2>
+    <p class="sec-desc" data-i18n="t6Desc"></p>
+
+    <div class="panel" style="padding:0; overflow:hidden;">
+      <div class="code-wrap" style="border:none; border-radius:0; margin:0;">
+        <div class="code-head">
+          <span>test_tensor_shapes.py · pip install torch · python test_tensor_shapes.py</span>
+          <button class="copy-btn" id="copyBtn" data-i18n="copyBtn"></button>
+        </div>
+        <pre class="code-block"><code id="pyCode"></code></pre>
+      </div>
+    </div>
+  </section>
+
+  <footer>rendered client-side · no data leaves this page</footer>
+</div>
+
+<script>
+/* ============================================================
+   i18n dictionary — en / ko / yue / zh / ja / cs
+   ============================================================ */
+const I18N = {
+en:{
+  title:'Tensor Shapes: Batches to <span>Transformers</span>',
+  desc:'Batch processing, PyTorch broadcasting, transformer shape flow, affine transforms — explore, play, and quiz yourself. Earn XP as you learn.',
+  xpLabel:'XP', streakLabel:'Streak',
+  levels:['Shape Novice','Batch Apprentice','Broadcast Adept','Matmul Wizard','Tensor Master'],
+  tab1:'01 · Batch Basics', tab2:'02 · Broadcasting', tab3:'03 · Transformer', tab4:'04 · Affine', tab5:'05 · Quiz ⚔', tab6:'06 · Python',
+  paramsTitle:'Parameters',
+  legendBatch:'batch dim (N, kept as-is)', legendBatch2:'batch dim (kept as-is)', legendContract:'contracting dim (must match)',
+  t1Title:'Batch Processing in Forward Propagation',
+  t1Desc:'Whether it\'s 1 image or N, the flow is the same. N only appears in X\'s first dim and Y\'s first dim — it never touches the weights.',
+  nLabel:'N — batch size', presetSingle:'N=1 (single image)',
+  whyBatchTitle:'Why batch at all',
+  whyBatchBody:'Batching greatly improves compute efficiency: numerical libraries are optimized for large arrays, and fewer slow I/O calls means more time spent on pure CPU/GPU computation.',
+  l1:{tag:'LAYER 1', title:'X → W1', cap:'Feed all N images at once. 784 (28×28 pixels) matches W1\'s input dimension.'},
+  l2:{tag:'LAYER 2', title:'· → W2', cap:'Transforms the 50-dim hidden layer into 100 dimensions.'},
+  l3:{tag:'LAYER 3', title:'· → W3', cap:'Outputs final scores for 10 classes.'},
+  t2Title:'PyTorch matmul Broadcasting Rules',
+  t2Desc:'The <b style="color:var(--text)">last two dims</b> follow the 2D rule <span style="color:var(--amber)">(m,k) @ (k,n) → (m,n)</span>. Everything before follows normal broadcasting.',
+  checkerTitle:'Shape Checker — type two shapes and watch the result',
+  pBroadcast:'broadcast share', pExact:'exact batch match', pOne:'batch=1 expand', pMulti:'multi batch dims', pB1d:'B is 1D', pA1d:'A is 1D', pErr:'error case',
+  casesTitle:'Cases covered', thResult:'Result', thExplain:'Explanation', errWord:'error',
+  row1:'Weight W shared (broadcast) across the batch', row2:'Batch dim matches exactly on both sides', row3:'Batch dim 1 broadcasts up to 100',
+  row4:'Same with multiple leading batch dims', row5:'1D B → matrix-vector, last axis disappears', row6:'1D A → leading axis disappears', row7:'100 and 64 can\'t broadcast',
+  match:'match', mismatch:'mismatch', scalar:'scalar (0-d)',
+  errEmpty:'Please enter a shape.', errNaN:'Numbers separated by commas, e.g. 100,20,30',
+  errLast:(a,b)=>`Last axis of A (${a}) doesn't match B's axis (${b}).`,
+  errBatch:(i,a,b)=>`Batch dims can't broadcast (position ${i}: ${a} vs ${b}).`,
+  t3Title:'The Transformer\'s (B, S, D) Shape Flow',
+  t3Desc:'Weights are 2D — broadcast-shared across (B,S). Data-to-data products (Q·Kᵀ, Score·V) need batch dims (B,h) to match exactly.',
+  archTitle:'Architecture — one transformer block',
+  archDesc:'Watch the data dots flow: X enters, splits into heads for attention, merges back, passes the FFN, and exits with the same (B,S,D) shape. Violet arcs are residual connections.',
+  playFlow:'▶ Play shape flow',
+  tWarn:(D,h,dk)=>`⚠ D(${D}) is not divisible by h(${h}) → d_k=${dk}. Adjust D or h.`,
+  s1:{tag:'STAGE 1', title:'Up-projection', cap:'Expands each token embedding into a wider inner dimension.'},
+  s2:{tag:'STAGE 2', title:'Down-projection', cap:'Projects back to the original embedding dimension D.'},
+  s3:{tag:'STAGE 3', title:'Q·K·V projection', cap:'Multiplies X by separate weights to produce Q, K, V (one shown).'},
+  s4:{tag:'STAGE 4', title:'Attention score', cap:'Contracting on d_k yields an (S×S) score matrix — how much each position attends to every other.'},
+  s5:{tag:'STAGE 5', title:'Attention output', cap:'Weighted-sums V by the scores, then merges heads back into (B,S,D).'},
+  reshape1:'↓ reshape: (B,S,D) → (B,h,S,d_k)', reshape2:'↓ reshape: (B,h,S,d_k) → (B,S,D)',
+  t4Title:'What Is an Affine Transform?',
+  t4Desc:'A linear transformation plus a translation. The only difference is the bias b — and it changes everything the map can express.',
+  linearCard:'Always sends the origin to the origin (x=0 → y=0). Only lines/planes through the origin — no translation.',
+  affineCard:'Rotation/scaling (W) plus translation (b). No origin constraint, yet lines still map to lines, parallels to parallels.',
+  nnTitle:'Affine in Neural Networks',
+  nnBody:'This is exactly what a Dense/Linear layer computes. With b, "affine" is the mathematically correct term — which is why <i>Deep Learning from Scratch</i> calls it the <b>Affine layer</b>. (PyTorch\'s <code style="color:var(--cyan)">nn.Linear</code> is named "Linear" but performs an affine op.)',
+  deepTitle:'Why an origin-free affine transform matters in deep learning',
+  d1Title:'1. Where affine actually shows up',
+  d1Body:'The basic Fully Connected layer IS an affine transform: y = Wx + b. Wx fixes the origin; +b moves it. Nearly every layer has this "linear + bias" structure.',
+  d2Title:'2. The fundamental problem without bias',
+  d2Body:'Without bias, the decision boundary is forced to pass through the origin.',
+  d2Example:'<b>2D example —</b> Class A near (3,4),(5,6),(4,5); Class B near (-2,-3),(-4,-1).<br><b>No bias</b> (y=Wx): the boundary must pass through (0,0) — nearly impossible to separate off-center data.<br><b>With bias</b> (y=Wx+b): the boundary moves freely.',
+  d3Title:'3. Why it matters especially in deep learning',
+  d3a:'<b>Activations are centered on 0</b> — ReLU passes x&gt;0, sigmoid/tanh are steepest near 0. Bias lets a neuron learn WHERE it starts activating.',
+  d3b:'<b>Real data isn\'t origin-centered</b> — pixels run 0–255, means rarely land at 0. Bias learns the offset so W can focus on direction and scale.',
+  d3c:'<b>The constraint compounds with depth</b> — a small deficiency per layer stacks up; deeper nets suffer more from "must pass through origin".',
+  d3d:'<b>Optimization</b> — bias makes the loss landscape more flexible, avoiding saddle points caused purely by the origin constraint.',
+  d4Title:'4. In practice',
+  d4Body:'Every framework includes bias by default. <code style="color:var(--cyan)">bias=False</code> only for special cases — e.g. right before BatchNorm (BN already re-centers to mean 0), or theoretical/memory reasons.',
+  dCallout:'<b>One line:</b> a bias-included affine transform frees the network from having to pass through the origin — boundaries move freely, activations cooperate, and real data\'s position and scale are handled. That\'s why deep learning builds on affine, not plain linear.',
+  t5Title:'Shape Quiz — predict the output!',
+  t5Desc:'A random A @ B appears. Type the resulting shape (e.g. 100,20,50) — or press ERROR if the matmul is invalid. +10 XP per correct answer, streak multiplies your gains.',
+  quizPanelTitle:'Battle arena',
+  quizPlaceholder:'e.g. 100,20,50',
+  quizCheck:'Check ✓', quizErrorBtn:'ERROR ✗', quizNext:'New question ↻',
+  quizCorrect:(xp)=>`✓ Correct! +${xp} XP`,
+  quizWrongShape:(ans)=>`✗ Not quite. Correct answer: ${ans}`,
+  quizWrongError:'✗ This one is actually an ERROR — the shapes can\'t multiply.',
+  quizWasValid:(ans)=>`✗ It's actually valid! Result: ${ans}`,
+  badge1:'3 streak', badge2:'5 streak', badge3:'10 correct', badge4:'20 correct',
+  t6Title:'Runnable Python Tests',
+  t6Desc:'A PyTorch script verifying everything: the batch FC chain, broadcasting cases, transformer shape flow, and a bias-vs-no-bias experiment.',
+  copyBtn:'Copy', copied:'Copied!'
+},
+ko:{
+  title:'텐서 형상, 배치부터 <span>트랜스포머</span>까지',
+  desc:'배치 처리, PyTorch 브로드캐스팅, 트랜스포머 형상 흐름, Affine 변환 — 만지고, 놀고, 퀴즈로 확인하세요. 배우면서 XP를 모을 수 있습니다.',
+  xpLabel:'XP', streakLabel:'연속',
+  levels:['형상 입문자','배치 견습생','브로드캐스트 숙련자','Matmul 마법사','텐서 마스터'],
+  tab1:'01 · 배치 기초', tab2:'02 · 브로드캐스팅', tab3:'03 · 트랜스포머', tab4:'04 · Affine', tab5:'05 · 퀴즈 ⚔', tab6:'06 · 파이썬',
+  paramsTitle:'Parameters',
+  legendBatch:'배치 차원 (N, 그대로 유지)', legendBatch2:'배치 차원 (그대로 유지)', legendContract:'맞물리는 차원 (반드시 일치)',
+  t1Title:'신경망 순전파의 배치 처리',
+  t1Desc:'이미지 1장이든 N장이든 흐름은 같습니다. N은 X와 Y의 첫 차원에만 나타나고 가중치에는 영향을 주지 않습니다.',
+  nLabel:'N — 배치 크기', presetSingle:'N=1 (이미지 한 장)',
+  whyBatchTitle:'왜 배치로 묶는가',
+  whyBatchBody:'배치 처리는 계산 효율을 크게 높입니다. 수치 라이브러리는 큰 배열에 최적화되어 있고, 느린 I/O 횟수가 줄어 순수 계산 비율이 높아집니다.',
+  l1:{tag:'LAYER 1', title:'X → W1', cap:'N장의 이미지를 한 번에 넣습니다. 784(28×28 픽셀)가 W1의 입력 차원과 맞물립니다.'},
+  l2:{tag:'LAYER 2', title:'· → W2', cap:'은닉층 50차원을 100차원으로 변환합니다.'},
+  l3:{tag:'LAYER 3', title:'· → W3', cap:'최종적으로 10개 클래스 점수를 출력합니다.'},
+  t2Title:'PyTorch matmul 브로드캐스팅 규칙',
+  t2Desc:'<b style="color:var(--text)">맨 뒤 두 차원</b>은 2D 규칙 <span style="color:var(--amber)">(m,k) @ (k,n) → (m,n)</span>을 따르고, 그 앞은 일반 브로드캐스팅을 따릅니다.',
+  checkerTitle:'Shape Checker — 두 shape을 직접 입력해보세요',
+  pBroadcast:'브로드캐스트 공유', pExact:'배치 완전 일치', pOne:'배치=1 확장', pMulti:'다중 배치 축', pB1d:'B가 1D', pA1d:'A가 1D', pErr:'에러 케이스',
+  casesTitle:'케이스 요약', thResult:'결과', thExplain:'설명', errWord:'에러',
+  row1:'가중치 W가 배치 전체에 공유(브로드캐스트)', row2:'배치 차원이 완전히 일치', row3:'배치 차원 1이 100으로 브로드캐스트',
+  row4:'배치 축이 여러 개여도 동일하게 확장', row5:'B가 1D면 행렬-벡터곱, 마지막 축 소멸', row6:'A가 1D면 앞쪽 축 소멸', row7:'100과 64는 브로드캐스트 불가',
+  match:'일치', mismatch:'불일치', scalar:'스칼라 (0-d)',
+  errEmpty:'shape을 입력해주세요.', errNaN:'숫자만 콤마로 구분해 입력해주세요. 예: 100,20,30',
+  errLast:(a,b)=>`마지막 축(A: ${a})과 B의 축(${b})이 일치하지 않습니다.`,
+  errBatch:(i,a,b)=>`배치 차원이 브로드캐스트 불가능합니다 (위치 ${i}: ${a} vs ${b}).`,
+  t3Title:'트랜스포머의 (B, S, D) 형상 흐름',
+  t3Desc:'가중치는 2D — (B,S) 전체에 브로드캐스트 공유됩니다. 데이터끼리의 곱(Q·Kᵀ, Score·V)은 배치 차원(B,h)이 완전히 일치해야 합니다.',
+  archTitle:'아키텍처 — 트랜스포머 블록 하나',
+  archDesc:'데이터 점이 흐르는 걸 보세요: X가 들어가 헤드로 쪼개져 어텐션을 지나고, 다시 합쳐져 FFN을 통과해 같은 (B,S,D)로 나옵니다. 보라색 곡선은 잔차 연결입니다.',
+  playFlow:'▶ 형상 흐름 재생',
+  tWarn:(D,h,dk)=>`⚠ D(${D})가 h(${h})로 나누어떨어지지 않습니다 → d_k=${dk}. D 또는 h를 조정하세요.`,
+  s1:{tag:'STAGE 1', title:'Up-projection', cap:'토큰별 임베딩을 더 넓은 내부 차원으로 확장합니다.'},
+  s2:{tag:'STAGE 2', title:'Down-projection', cap:'다시 원래 임베딩 차원 D로 되돌립니다.'},
+  s3:{tag:'STAGE 3', title:'Q·K·V projection', cap:'X에 각각 다른 가중치를 곱해 Q, K, V를 만듭니다 (하나만 표시).'},
+  s4:{tag:'STAGE 4', title:'Attention score', cap:'d_k끼리 맞물리면 (S×S) 점수 행렬 — 각 위치가 다른 위치에 얼마나 주목하는지.'},
+  s5:{tag:'STAGE 5', title:'Attention output', cap:'점수로 V를 가중합한 뒤, 헤드를 다시 (B,S,D)로 병합합니다.'},
+  reshape1:'↓ reshape: (B,S,D) → (B,h,S,d_k)', reshape2:'↓ reshape: (B,h,S,d_k) → (B,S,D)',
+  t4Title:'Affine 변환이란',
+  t4Desc:'선형변환에 이동을 더한 것. 차이는 bias b 하나지만, 표현 가능한 범위가 완전히 달라집니다.',
+  linearCard:'원점을 반드시 원점으로 보냅니다(x=0 → y=0). 원점을 지나는 직선·평면만 표현 가능하며 평행이동은 불가.',
+  affineCard:'회전·확대(W) + 평행이동(b). 원점 고정 없이도 직선은 직선으로, 평행선은 평행선으로.',
+  nnTitle:'신경망에서의 Affine',
+  nnBody:'Dense/Linear 레이어가 하는 연산이 정확히 이 형태입니다. b가 있으면 수학적으로 <b>affine</b>이 정확한 용어 — 『밑바닥부터 시작하는 딥러닝』이 이 계층을 <b>Affine 계층</b>이라 부르는 이유입니다. (PyTorch <code style="color:var(--cyan)">nn.Linear</code>는 이름만 Linear.)',
+  deepTitle:'"원점을 고정하지 않는 Affine 변환"이 딥러닝에서 중요한 이유',
+  d1Title:'1. Affine이 실제로 어디에 쓰이는가',
+  d1Body:'기본 Fully Connected 레이어가 바로 Affine 변환입니다: y = Wx + b. Wx는 원점 고정, +b는 원점 이동. 거의 모든 레이어가 "선형 + Bias" 구조입니다.',
+  d2Title:'2. Bias가 없으면 생기는 근본 문제',
+  d2Body:'Bias가 없으면 결정 경계가 반드시 원점을 지나야 합니다.',
+  d2Example:'<b>2D 예시 —</b> 클래스 A: (3,4),(5,6),(4,5) 근처. 클래스 B: (-2,-3),(-4,-1) 근처.<br><b>Bias 없음</b> (y=Wx): 경계가 (0,0)을 지나야 해 분리 거의 불가.<br><b>Bias 있음</b> (y=Wx+b): 경계를 자유롭게 이동.',
+  d3Title:'3. 딥러닝에서 특히 중요한 이유',
+  d3a:'<b>활성화 함수는 0 기준</b> — ReLU는 x&gt;0만 통과, sigmoid/tanh는 0 근처에서 기울기 최대. Bias로 뉴런이 "어디서부터 활성화될지"를 학습.',
+  d3b:'<b>실제 데이터는 원점 중심이 아님</b> — 픽셀 0~255, 평균이 0에 딱 맞지 않음. Bias가 offset을 학습해 W는 방향·스케일에 집중.',
+  d3c:'<b>깊이에 따라 제약이 누적</b> — 레이어마다의 작은 부족이 쌓임. 깊을수록 "원점 통과" 제약이 표현력을 크게 제한.',
+  d3d:'<b>최적화</b> — Bias가 손실 landscape를 유연하게 만들어, 원점 제약이 만드는 불필요한 saddle point를 회피.',
+  d4Title:'4. 실무에서의 현실',
+  d4Body:'모든 프레임워크가 기본으로 Bias 포함. <code style="color:var(--cyan)">bias=False</code>는 특수한 경우만 — 예: BatchNorm 바로 앞(BN이 이미 평균을 0으로), 이론 분석·메모리 최적화.',
+  dCallout:'<b>한 줄 요약:</b> Bias가 있는 Affine 변환은 "원점을 꼭 지나야 한다"는 제약에서 네트워크를 해방시킵니다. 경계는 자유롭게 움직이고, 활성화와 협력하며, 실제 데이터의 위치·스케일에 유연하게 대응합니다. 딥러닝의 기본 단위가 linear가 아닌 affine인 이유입니다.',
+  t5Title:'Shape 퀴즈 — 출력을 예측하라!',
+  t5Desc:'랜덤한 A @ B가 나옵니다. 결과 shape을 입력하거나(예: 100,20,50), 곱셈이 불가능하면 ERROR를 누르세요. 정답당 +10 XP, 연속 정답은 배수 보너스!',
+  quizPanelTitle:'배틀 아레나',
+  quizPlaceholder:'예: 100,20,50',
+  quizCheck:'확인 ✓', quizErrorBtn:'ERROR ✗', quizNext:'새 문제 ↻',
+  quizCorrect:(xp)=>`✓ 정답! +${xp} XP`,
+  quizWrongShape:(ans)=>`✗ 아쉽네요. 정답: ${ans}`,
+  quizWrongError:'✗ 이건 사실 ERROR — 두 shape은 곱할 수 없습니다.',
+  quizWasValid:(ans)=>`✗ 사실 곱할 수 있어요! 결과: ${ans}`,
+  badge1:'3연속', badge2:'5연속', badge3:'10문제 정답', badge4:'20문제 정답',
+  t6Title:'실행 가능한 파이썬 테스트',
+  t6Desc:'전부 검증하는 PyTorch 스크립트: 배치 FC 체인, 브로드캐스팅 케이스, 트랜스포머 형상 흐름, bias 유무 실험.',
+  copyBtn:'복사', copied:'복사됨!'
+},
+yue:{
+  title:'張量形狀：由批次去到<span>Transformer</span>',
+  desc:'批次處理、PyTorch 廣播、Transformer 形狀流程、Affine 變換 — 一路玩一路學，仲可以做測驗儲 XP。',
+  xpLabel:'XP', streakLabel:'連勝',
+  levels:['形狀新手','批次學徒','廣播熟手','Matmul 巫師','張量大師'],
+  tab1:'01 · 批次基礎', tab2:'02 · 廣播規則', tab3:'03 · Transformer', tab4:'04 · Affine', tab5:'05 · 測驗 ⚔', tab6:'06 · Python',
+  paramsTitle:'參數',
+  legendBatch:'批次維度 (N，保持不變)', legendBatch2:'批次維度 (保持不變)', legendContract:'相接維度 (一定要一致)',
+  t1Title:'前向傳播嘅批次處理',
+  t1Desc:'唔理係 1 張定 N 張圖，流程都一樣。N 淨係出現喺 X 同 Y 嘅第一維，完全唔會影響權重形狀。',
+  nLabel:'N — 批次大小', presetSingle:'N=1 (一張圖)',
+  whyBatchTitle:'點解要用批次',
+  whyBatchBody:'批次處理令計算效率大大提高：數值庫針對大陣列優化，慢 I/O 次數減少，CPU/GPU 純計算比例就更高。',
+  l1:{tag:'LAYER 1', title:'X → W1', cap:'一次過放 N 張圖入去。784 (28×28 像素) 同 W1 嘅輸入維度相接。'},
+  l2:{tag:'LAYER 2', title:'· → W2', cap:'將 50 維隱藏層變成 100 維。'},
+  l3:{tag:'LAYER 3', title:'· → W3', cap:'最後輸出 10 個類別嘅分數。'},
+  t2Title:'PyTorch matmul 廣播規則',
+  t2Desc:'<b style="color:var(--text)">最後兩個維度</b>跟 2D 規則 <span style="color:var(--amber)">(m,k) @ (k,n) → (m,n)</span>，之前嘅維度跟一般廣播規則。',
+  checkerTitle:'Shape Checker — 自己打兩個 shape 試下',
+  pBroadcast:'廣播共享', pExact:'批次完全一致', pOne:'批次=1 擴展', pMulti:'多重批次軸', pB1d:'B 係 1D', pA1d:'A 係 1D', pErr:'錯誤例子',
+  casesTitle:'例子總覽', thResult:'結果', thExplain:'解釋', errWord:'錯誤',
+  row1:'權重 W 喺成個批次共享 (廣播)', row2:'兩邊批次維度完全一致', row3:'批次維度 1 廣播成 100',
+  row4:'多個批次軸都一樣咁擴展', row5:'B 係 1D → 矩陣-向量乘，最後軸消失', row6:'A 係 1D → 前面嘅軸消失', row7:'100 同 64 冇得廣播',
+  match:'一致', mismatch:'唔一致', scalar:'純量 (0-d)',
+  errEmpty:'請輸入 shape。', errNaN:'淨係用逗號分隔數字，例如 100,20,30',
+  errLast:(a,b)=>`A 嘅最後軸 (${a}) 同 B 嘅軸 (${b}) 唔一致。`,
+  errBatch:(i,a,b)=>`批次維度冇得廣播 (位置 ${i}: ${a} vs ${b})。`,
+  t3Title:'Transformer 嘅 (B, S, D) 形狀流程',
+  t3Desc:'權重係 2D — 喺 (B,S) 全部廣播共享。數據同數據相乘 (Q·Kᵀ, Score·V) 就要批次維度 (B,h) 完全一致。',
+  archTitle:'架構 — 一個 Transformer block',
+  archDesc:'睇住啲數據點流動：X 入去，分頭做 attention，再合返埋，經過 FFN，最後用同一個 (B,S,D) 形狀出返嚟。紫色弧線係殘差連接。',
+  playFlow:'▶ 播放形狀流程',
+  tWarn:(D,h,dk)=>`⚠ D(${D}) 除唔盡 h(${h}) → d_k=${dk}。請調整 D 或 h。`,
+  s1:{tag:'STAGE 1', title:'Up-projection', cap:'將每個 token 嘅 embedding 擴展去更闊嘅內部維度。'},
+  s2:{tag:'STAGE 2', title:'Down-projection', cap:'投影返去原本嘅 embedding 維度 D。'},
+  s3:{tag:'STAGE 3', title:'Q·K·V projection', cap:'X 分別乘唔同權重造出 Q、K、V (顯示一個)。'},
+  s4:{tag:'STAGE 4', title:'Attention score', cap:'喺 d_k 相接就得出 (S×S) 分數矩陣 — 每個位置對其他位置嘅關注度。'},
+  s5:{tag:'STAGE 5', title:'Attention output', cap:'用分數加權 V，再將啲頭合返做 (B,S,D)。'},
+  reshape1:'↓ reshape: (B,S,D) → (B,h,S,d_k)', reshape2:'↓ reshape: (B,h,S,d_k) → (B,S,D)',
+  t4Title:'咩係 Affine 變換？',
+  t4Desc:'線性變換加平移。分別淨係一個 bias b — 但表達能力完全唔同咗。',
+  linearCard:'一定將原點送去原點 (x=0 → y=0)。淨係表達到過原點嘅直線／平面，冇得平移。',
+  affineCard:'旋轉／縮放 (W) 加平移 (b)。唔使釘死原點，但直線照樣係直線，平行線照樣平行。',
+  nnTitle:'神經網絡入面嘅 Affine',
+  nnBody:'Dense/Linear layer 做嘅正正就係呢條式。有咗 b，數學上正確嘅叫法係 <b>affine</b> — 所以《Deep Learning from Scratch》叫呢層做 <b>Affine layer</b>。(PyTorch 嘅 <code style="color:var(--cyan)">nn.Linear</code> 個名叫 Linear，其實做緊 affine。)',
+  deepTitle:'點解「唔釘死原點嘅 Affine 變換」喺深度學習咁重要',
+  d1Title:'1. Affine 實際用喺邊',
+  d1Body:'最基本嘅 Fully Connected layer 就係 Affine 變換：y = Wx + b。Wx 釘住原點，+b 搬走原點。差唔多每一層都係「線性 + Bias」結構。',
+  d2Title:'2. 冇 Bias 嘅根本問題',
+  d2Body:'冇 bias 嘅話，決策邊界一定要穿過原點。',
+  d2Example:'<b>2D 例子 —</b> A 類喺 (3,4),(5,6),(4,5) 附近；B 類喺 (-2,-3),(-4,-1) 附近。<br><b>冇 bias</b> (y=Wx)：邊界一定過 (0,0) — 離晒原點嘅數據幾乎分唔開。<br><b>有 bias</b> (y=Wx+b)：邊界可以自由移動。',
+  d3Title:'3. 點解深度學習特別在意',
+  d3a:'<b>激活函數以 0 為中心</b> — ReLU 淨係俾 x&gt;0 通過，sigmoid/tanh 喺 0 附近斜率最大。Bias 令神經元學到「由邊度開始激活」。',
+  d3b:'<b>真實數據唔係以原點為中心</b> — 像素 0–255，平均值好少啱啱係 0。Bias 學 offset，W 就專心做方向同縮放。',
+  d3c:'<b>層數越深制約越疊加</b> — 每層差少少，疊埋就好多。越深嘅網絡越受「一定過原點」呢個制約影響。',
+  d3d:'<b>優化角度</b> — 有 bias 令 loss landscape 更靈活，避開純粹因為原點制約而出現嘅 saddle point。',
+  d4Title:'4. 實際做法',
+  d4Body:'所有框架預設都有 bias。<code style="color:var(--cyan)">bias=False</code> 淨係特殊情況先用 — 例如 BatchNorm 之前 (BN 已經將平均變 0)，或者理論分析／慳記憶體。',
+  dCallout:'<b>一句總結：</b>有 bias 嘅 Affine 變換令網絡唔使「一定穿過原點」。邊界自由移動、同激活函數合作得好、又應付到真實數據嘅位置同尺度。所以深度學習嘅基本單位係 affine，唔係純 linear。',
+  t5Title:'Shape 測驗 — 預測輸出！',
+  t5Desc:'隨機出一條 A @ B。輸入結果 shape (例如 100,20,50)，如果根本乘唔到就撳 ERROR。答啱 +10 XP，連勝有加成！',
+  quizPanelTitle:'戰鬥擂台',
+  quizPlaceholder:'例如 100,20,50',
+  quizCheck:'檢查 ✓', quizErrorBtn:'ERROR ✗', quizNext:'新題目 ↻',
+  quizCorrect:(xp)=>`✓ 啱晒！+${xp} XP`,
+  quizWrongShape:(ans)=>`✗ 差少少。正確答案：${ans}`,
+  quizWrongError:'✗ 呢條其實係 ERROR — 兩個 shape 乘唔埋。',
+  quizWasValid:(ans)=>`✗ 其實乘得到！結果：${ans}`,
+  badge1:'3 連勝', badge2:'5 連勝', badge3:'答啱 10 條', badge4:'答啱 20 條',
+  t6Title:'可以直接行嘅 Python 測試',
+  t6Desc:'一個 PyTorch script 驗證晒全部嘢：批次 FC 鏈、廣播例子、Transformer 形狀流程、有冇 bias 嘅實驗。',
+  copyBtn:'複製', copied:'複製咗！'
+},
+zh:{
+  title:'张量形状：从批处理到<span>Transformer</span>',
+  desc:'批处理、PyTorch 广播、Transformer 形状流程、Affine 变换 — 边玩边学，还能做测验攒 XP。',
+  xpLabel:'XP', streakLabel:'连击',
+  levels:['形状新手','批处理学徒','广播熟练者','Matmul 巫师','张量大师'],
+  tab1:'01 · 批处理基础', tab2:'02 · 广播规则', tab3:'03 · Transformer', tab4:'04 · Affine', tab5:'05 · 测验 ⚔', tab6:'06 · Python',
+  paramsTitle:'参数',
+  legendBatch:'批次维度 (N，保持不变)', legendBatch2:'批次维度 (保持不变)', legendContract:'收缩维度 (必须一致)',
+  t1Title:'前向传播中的批处理',
+  t1Desc:'无论是 1 张还是 N 张图，流程完全相同。N 只出现在 X 和 Y 的第一维，从不影响权重形状。',
+  nLabel:'N — 批次大小', presetSingle:'N=1 (单张图片)',
+  whyBatchTitle:'为什么要批处理',
+  whyBatchBody:'批处理大幅提升计算效率：数值库针对大数组高度优化，且慢速 I/O 次数减少，CPU/GPU 花在纯计算上的比例更高。',
+  l1:{tag:'LAYER 1', title:'X → W1', cap:'一次输入 N 张图。784 (28×28 像素) 与 W1 的输入维度相接。'},
+  l2:{tag:'LAYER 2', title:'· → W2', cap:'把 50 维隐藏层变换为 100 维。'},
+  l3:{tag:'LAYER 3', title:'· → W3', cap:'最终输出 10 个类别的分数。'},
+  t2Title:'PyTorch matmul 广播规则',
+  t2Desc:'<b style="color:var(--text)">最后两个维度</b>遵循 2D 规则 <span style="color:var(--amber)">(m,k) @ (k,n) → (m,n)</span>，之前的维度遵循普通广播规则。',
+  checkerTitle:'Shape Checker — 自己输入两个 shape 试试',
+  pBroadcast:'广播共享', pExact:'批次完全一致', pOne:'批次=1 扩展', pMulti:'多重批次轴', pB1d:'B 是 1D', pA1d:'A 是 1D', pErr:'错误案例',
+  casesTitle:'案例总结', thResult:'结果', thExplain:'说明', errWord:'错误',
+  row1:'权重 W 在整个批次上共享 (广播)', row2:'两侧批次维度完全一致', row3:'批次维度 1 广播为 100',
+  row4:'多个前置批次轴同样扩展', row5:'B 为 1D → 矩阵-向量乘，最后轴消失', row6:'A 为 1D → 前置轴消失', row7:'100 和 64 无法广播',
+  match:'一致', mismatch:'不一致', scalar:'标量 (0-d)',
+  errEmpty:'请输入 shape。', errNaN:'请用逗号分隔数字，例如 100,20,30',
+  errLast:(a,b)=>`A 的最后一轴 (${a}) 与 B 的轴 (${b}) 不一致。`,
+  errBatch:(i,a,b)=>`批次维度无法广播 (位置 ${i}: ${a} vs ${b})。`,
+  t3Title:'Transformer 的 (B, S, D) 形状流程',
+  t3Desc:'权重是 2D 的 — 在 (B,S) 上广播共享。数据与数据相乘 (Q·Kᵀ, Score·V) 时批次维度 (B,h) 必须完全一致。',
+  archTitle:'架构 — 一个 Transformer block',
+  archDesc:'看数据点如何流动：X 进入，分头做 attention，再合并，经过 FFN，最后以相同的 (B,S,D) 形状输出。紫色弧线是残差连接。',
+  playFlow:'▶ 播放形状流程',
+  tWarn:(D,h,dk)=>`⚠ D(${D}) 不能被 h(${h}) 整除 → d_k=${dk}。请调整 D 或 h。`,
+  s1:{tag:'STAGE 1', title:'Up-projection', cap:'把每个 token 的 embedding 扩展到更宽的内部维度。'},
+  s2:{tag:'STAGE 2', title:'Down-projection', cap:'投影回原始 embedding 维度 D。'},
+  s3:{tag:'STAGE 3', title:'Q·K·V projection', cap:'X 分别乘以不同权重得到 Q、K、V (仅显示一个)。'},
+  s4:{tag:'STAGE 4', title:'Attention score', cap:'在 d_k 上收缩得到 (S×S) 分数矩阵 — 每个位置对其他位置的关注度。'},
+  s5:{tag:'STAGE 5', title:'Attention output', cap:'用分数加权 V，再把多头合并回 (B,S,D)。'},
+  reshape1:'↓ reshape: (B,S,D) → (B,h,S,d_k)', reshape2:'↓ reshape: (B,h,S,d_k) → (B,S,D)',
+  t4Title:'什么是 Affine 变换？',
+  t4Desc:'线性变换加平移。区别只有一个 bias b — 但表达能力完全不同。',
+  linearCard:'必然把原点映射到原点 (x=0 → y=0)。只能表达过原点的直线/平面，无法平移。',
+  affineCard:'旋转/缩放 (W) 加平移 (b)。不固定原点，但直线仍映射为直线，平行线仍平行。',
+  nnTitle:'神经网络中的 Affine',
+  nnBody:'Dense/Linear 层做的正是这个运算。有了 b，数学上正确的名称是 <b>affine</b> — 这就是《深度学习入门》把这一层叫做 <b>Affine 层</b>的原因。(PyTorch 的 <code style="color:var(--cyan)">nn.Linear</code> 名字叫 Linear，实际执行的是 affine。)',
+  deepTitle:'为什么"不固定原点的 Affine 变换"在深度学习中如此重要',
+  d1Title:'1. Affine 实际用在哪里',
+  d1Body:'最基本的全连接层就是 Affine 变换：y = Wx + b。Wx 固定原点，+b 移动原点。几乎每一层都是"线性 + Bias"结构。',
+  d2Title:'2. 没有 Bias 的根本问题',
+  d2Body:'没有 bias 时，决策边界必须穿过原点。',
+  d2Example:'<b>2D 例子 —</b> A 类在 (3,4),(5,6),(4,5) 附近；B 类在 (-2,-3),(-4,-1) 附近。<br><b>无 bias</b> (y=Wx)：边界必须过 (0,0) — 偏离原点的数据几乎无法分开。<br><b>有 bias</b> (y=Wx+b)：边界可以自由移动。',
+  d3Title:'3. 为什么深度学习尤其在意',
+  d3a:'<b>激活函数以 0 为中心</b> — ReLU 只让 x&gt;0 通过，sigmoid/tanh 在 0 附近斜率最大。Bias 让神经元学会"从哪里开始激活"。',
+  d3b:'<b>真实数据不以原点为中心</b> — 像素 0–255，均值很少正好是 0。Bias 学习偏移量，W 专注方向与缩放。',
+  d3c:'<b>约束随深度累积</b> — 每层的一点不足会层层叠加，越深的网络越受"必须过原点"约束的限制。',
+  d3d:'<b>优化角度</b> — bias 让损失曲面更灵活，避开纯粹由原点约束造成的鞍点。',
+  d4Title:'4. 实践中的现实',
+  d4Body:'所有框架默认都包含 bias。<code style="color:var(--cyan)">bias=False</code> 只在特殊情况使用 — 如 BatchNorm 之前 (BN 已把均值归零)，或理论分析/内存优化。',
+  dCallout:'<b>一句话总结：</b>带 bias 的 Affine 变换让网络摆脱"必须穿过原点"的约束 — 边界自由移动、与激活函数良好配合、适应真实数据的位置和尺度。这就是深度学习的基本单位是 affine 而非纯 linear 的原因。',
+  t5Title:'Shape 测验 — 预测输出！',
+  t5Desc:'随机出现一道 A @ B。输入结果 shape (如 100,20,50)，如果无法相乘就按 ERROR。答对 +10 XP，连击有加成！',
+  quizPanelTitle:'战斗竞技场',
+  quizPlaceholder:'如 100,20,50',
+  quizCheck:'检查 ✓', quizErrorBtn:'ERROR ✗', quizNext:'新题目 ↻',
+  quizCorrect:(xp)=>`✓ 正确！+${xp} XP`,
+  quizWrongShape:(ans)=>`✗ 差一点。正确答案：${ans}`,
+  quizWrongError:'✗ 这道其实是 ERROR — 两个 shape 无法相乘。',
+  quizWasValid:(ans)=>`✗ 其实可以相乘！结果：${ans}`,
+  badge1:'3 连击', badge2:'5 连击', badge3:'答对 10 题', badge4:'答对 20 题',
+  t6Title:'可运行的 Python 测试',
+  t6Desc:'验证全部内容的 PyTorch 脚本：批处理 FC 链、广播案例、Transformer 形状流程、有无 bias 的实验。',
+  copyBtn:'复制', copied:'已复制！'
+},
+ja:{
+  title:'テンソル形状：バッチから<span>Transformer</span>まで',
+  desc:'バッチ処理、PyTorch ブロードキャスト、Transformer の形状フロー、Affine 変換 — 触って、遊んで、クイズで確認。学びながら XP を貯めよう。',
+  xpLabel:'XP', streakLabel:'連続',
+  levels:['形状ビギナー','バッチ見習い','ブロードキャスト熟練者','Matmul ウィザード','テンソルマスター'],
+  tab1:'01 · バッチ基礎', tab2:'02 · ブロードキャスト', tab3:'03 · Transformer', tab4:'04 · Affine', tab5:'05 · クイズ ⚔', tab6:'06 · Python',
+  paramsTitle:'パラメータ',
+  legendBatch:'バッチ次元 (N、そのまま維持)', legendBatch2:'バッチ次元 (そのまま維持)', legendContract:'縮約次元 (必ず一致)',
+  t1Title:'順伝播におけるバッチ処理',
+  t1Desc:'画像が 1 枚でも N 枚でも流れは同じ。N は X と Y の先頭次元にだけ現れ、重みの形状には一切影響しません。',
+  nLabel:'N — バッチサイズ', presetSingle:'N=1 (画像 1 枚)',
+  whyBatchTitle:'なぜバッチにまとめるのか',
+  whyBatchBody:'バッチ処理は計算効率を大幅に高めます。数値ライブラリは大きな配列に最適化されており、遅い I/O の回数が減ることで CPU/GPU が純粋な計算に使える割合が上がります。',
+  l1:{tag:'LAYER 1', title:'X → W1', cap:'N 枚の画像を一度に入力。784 (28×28 ピクセル) が W1 の入力次元と噛み合います。'},
+  l2:{tag:'LAYER 2', title:'· → W2', cap:'隠れ層の 50 次元を 100 次元に変換します。'},
+  l3:{tag:'LAYER 3', title:'· → W3', cap:'最終的に 10 クラスのスコアを出力します。'},
+  t2Title:'PyTorch matmul のブロードキャスト規則',
+  t2Desc:'<b style="color:var(--text)">最後の 2 次元</b>は 2D 規則 <span style="color:var(--amber)">(m,k) @ (k,n) → (m,n)</span> に従い、その前の次元は通常のブロードキャスト規則に従います。',
+  checkerTitle:'Shape Checker — 2 つの shape を入力してみよう',
+  pBroadcast:'ブロードキャスト共有', pExact:'バッチ完全一致', pOne:'バッチ=1 拡張', pMulti:'複数バッチ軸', pB1d:'B が 1D', pA1d:'A が 1D', pErr:'エラー例',
+  casesTitle:'ケースまとめ', thResult:'結果', thExplain:'説明', errWord:'エラー',
+  row1:'重み W がバッチ全体で共有 (ブロードキャスト)', row2:'両側のバッチ次元が完全一致', row3:'バッチ次元 1 が 100 に拡張',
+  row4:'先頭バッチ軸が複数でも同様に拡張', row5:'B が 1D → 行列ベクトル積、最後の軸が消える', row6:'A が 1D → 先頭の軸が消える', row7:'100 と 64 はブロードキャスト不可',
+  match:'一致', mismatch:'不一致', scalar:'スカラー (0-d)',
+  errEmpty:'shape を入力してください。', errNaN:'カンマ区切りの数字で入力してください。例: 100,20,30',
+  errLast:(a,b)=>`A の最終軸 (${a}) と B の軸 (${b}) が一致しません。`,
+  errBatch:(i,a,b)=>`バッチ次元がブロードキャストできません (位置 ${i}: ${a} vs ${b})。`,
+  t3Title:'Transformer の (B, S, D) 形状フロー',
+  t3Desc:'重みは 2D — (B,S) 全体にブロードキャスト共有されます。データ同士の積 (Q·Kᵀ, Score·V) ではバッチ次元 (B,h) が完全一致する必要があります。',
+  archTitle:'アーキテクチャ — Transformer ブロック 1 つ',
+  archDesc:'データ点の流れを見てみましょう：X が入り、ヘッドに分割されて attention を通り、再結合して FFN を経て、同じ (B,S,D) 形状で出ていきます。紫の弧は残差接続です。',
+  playFlow:'▶ 形状フローを再生',
+  tWarn:(D,h,dk)=>`⚠ D(${D}) が h(${h}) で割り切れません → d_k=${dk}。D か h を調整してください。`,
+  s1:{tag:'STAGE 1', title:'Up-projection', cap:'各トークンの埋め込みをより広い内部次元へ拡張します。'},
+  s2:{tag:'STAGE 2', title:'Down-projection', cap:'元の埋め込み次元 D に戻します。'},
+  s3:{tag:'STAGE 3', title:'Q·K·V projection', cap:'X に別々の重みを掛けて Q、K、V を作ります (1 つのみ表示)。'},
+  s4:{tag:'STAGE 4', title:'Attention score', cap:'d_k で縮約すると (S×S) のスコア行列 — 各位置が他の位置にどれだけ注目するか。'},
+  s5:{tag:'STAGE 5', title:'Attention output', cap:'スコアで V を重み付き和し、ヘッドを (B,S,D) に再結合します。'},
+  reshape1:'↓ reshape: (B,S,D) → (B,h,S,d_k)', reshape2:'↓ reshape: (B,h,S,d_k) → (B,S,D)',
+  t4Title:'Affine 変換とは',
+  t4Desc:'線形変換に平行移動を加えたもの。違いは bias b 一つだけ — しかし表現できる範囲が全く変わります。',
+  linearCard:'必ず原点を原点に写します (x=0 → y=0)。原点を通る直線・平面しか表現できず、平行移動は不可能。',
+  affineCard:'回転・拡大 (W) + 平行移動 (b)。原点固定なしでも、直線は直線に、平行線は平行線に写ります。',
+  nnTitle:'ニューラルネットにおける Affine',
+  nnBody:'Dense/Linear 層が行う演算がまさにこの形です。b があると数学的に正しい用語は <b>affine</b> — 『ゼロから作る Deep Learning』がこの層を <b>Affine レイヤ</b>と呼ぶ理由です。(PyTorch の <code style="color:var(--cyan)">nn.Linear</code> は名前こそ Linear ですが実際は affine 演算。)',
+  deepTitle:'「原点を固定しない Affine 変換」が深層学習で重要な理由',
+  d1Title:'1. Affine が実際に使われる場所',
+  d1Body:'基本の全結合層こそが Affine 変換です：y = Wx + b。Wx は原点を固定し、+b が原点を動かす。ほぼすべての層が「線形 + Bias」構造です。',
+  d2Title:'2. Bias がないと起きる根本的な問題',
+  d2Body:'bias がないと、決定境界は必ず原点を通らなければなりません。',
+  d2Example:'<b>2D の例 —</b> クラス A: (3,4),(5,6),(4,5) 付近。クラス B: (-2,-3),(-4,-1) 付近。<br><b>bias なし</b> (y=Wx)：境界は (0,0) を通る必要があり、原点から離れたデータはほぼ分離不可能。<br><b>bias あり</b> (y=Wx+b)：境界を自由に動かせます。',
+  d3Title:'3. なぜ深層学習で特に重要か',
+  d3a:'<b>活性化関数は 0 が基準</b> — ReLU は x&gt;0 のみ通し、sigmoid/tanh は 0 付近で勾配最大。Bias によりニューロンは「どこから活性化するか」を学習できます。',
+  d3b:'<b>実データは原点中心ではない</b> — ピクセルは 0–255、平均がちょうど 0 になることは稀。Bias がオフセットを学び、W は方向とスケールに専念。',
+  d3c:'<b>深さとともに制約が蓄積</b> — 各層のわずかな不足が積み重なる。深いネットほど「原点を通る」制約が表現力を大きく制限。',
+  d3d:'<b>最適化の観点</b> — bias は損失関数の landscape を柔軟にし、原点制約だけが原因の鞍点を回避しやすくします。',
+  d4Title:'4. 実務での現実',
+  d4Body:'ほぼすべてのフレームワークがデフォルトで bias を含みます。<code style="color:var(--cyan)">bias=False</code> は特殊な場合のみ — 例：BatchNorm の直前 (BN が平均を 0 に揃えるため)、理論分析やメモリ最適化。',
+  dCallout:'<b>一言まとめ：</b>bias 付きの Affine 変換は「必ず原点を通る」という不要な制約からネットワークを解放します。境界は自由に動き、活性化関数と協調し、実データの位置とスケールに柔軟に対応。深層学習の基本単位が linear ではなく affine である理由です。',
+  t5Title:'Shape クイズ — 出力を予測せよ！',
+  t5Desc:'ランダムな A @ B が出題されます。結果の shape を入力するか (例: 100,20,50)、乗算できない場合は ERROR を押してください。正解ごとに +10 XP、連続正解でボーナス！',
+  quizPanelTitle:'バトルアリーナ',
+  quizPlaceholder:'例: 100,20,50',
+  quizCheck:'チェック ✓', quizErrorBtn:'ERROR ✗', quizNext:'新しい問題 ↻',
+  quizCorrect:(xp)=>`✓ 正解！+${xp} XP`,
+  quizWrongShape:(ans)=>`✗ 惜しい。正解: ${ans}`,
+  quizWrongError:'✗ これは実は ERROR — 2 つの shape は掛けられません。',
+  quizWasValid:(ans)=>`✗ 実は掛けられます！結果: ${ans}`,
+  badge1:'3 連続', badge2:'5 連続', badge3:'10 問正解', badge4:'20 問正解',
+  t6Title:'実行できる Python テスト',
+  t6Desc:'すべてを検証する PyTorch スクリプト：バッチ FC チェーン、ブロードキャストのケース、Transformer 形状フロー、bias 有無の実験。',
+  copyBtn:'コピー', copied:'コピー済み！'
+},
+cs:{
+  title:'Tvary tenzorů: od dávek k <span>Transformerům</span>',
+  desc:'Dávkové zpracování, broadcasting v PyTorch, tok tvarů v Transformeru, afinní transformace — zkoušej, hraj si a otestuj se kvízem. Za učení sbíráš XP.',
+  xpLabel:'XP', streakLabel:'Série',
+  levels:['Nováček tvarů','Učeň dávek','Znalec broadcastingu','Čaroděj matmul','Mistr tenzorů'],
+  tab1:'01 · Základy dávek', tab2:'02 · Broadcasting', tab3:'03 · Transformer', tab4:'04 · Afinní', tab5:'05 · Kvíz ⚔', tab6:'06 · Python',
+  paramsTitle:'Parametry',
+  legendBatch:'dávková dimenze (N, zůstává)', legendBatch2:'dávková dimenze (zůstává)', legendContract:'kontrakční dimenze (musí sedět)',
+  t1Title:'Dávkové zpracování v dopředném průchodu',
+  t1Desc:'Ať jde o 1 obrázek nebo N, tok je stejný. N se objeví jen v první dimenzi X a Y — vah se nikdy nedotkne.',
+  nLabel:'N — velikost dávky', presetSingle:'N=1 (jeden obrázek)',
+  whyBatchTitle:'Proč vůbec dávkovat',
+  whyBatchBody:'Dávkování výrazně zvyšuje efektivitu: numerické knihovny jsou optimalizované pro velká pole a méně pomalých I/O volání znamená víc času na čistý výpočet na CPU/GPU.',
+  l1:{tag:'LAYER 1', title:'X → W1', cap:'Vlož všech N obrázků najednou. 784 (28×28 pixelů) se kontrahuje se vstupní dimenzí W1.'},
+  l2:{tag:'LAYER 2', title:'· → W2', cap:'Transformuje 50rozměrnou skrytou vrstvu na 100 dimenzí.'},
+  l3:{tag:'LAYER 3', title:'· → W3', cap:'Vydá finální skóre pro 10 tříd.'},
+  t2Title:'Pravidla broadcastingu pro matmul v PyTorch',
+  t2Desc:'<b style="color:var(--text)">Poslední dvě dimenze</b> se řídí 2D pravidlem <span style="color:var(--amber)">(m,k) @ (k,n) → (m,n)</span>. Vše před nimi se řídí běžným broadcastingem.',
+  checkerTitle:'Shape Checker — zadej dva tvary a sleduj výsledek',
+  pBroadcast:'sdílení broadcastem', pExact:'přesná shoda dávek', pOne:'dávka=1 expanze', pMulti:'více dávkových os', pB1d:'B je 1D', pA1d:'A je 1D', pErr:'chybový případ',
+  casesTitle:'Probrané případy', thResult:'Výsledek', thExplain:'Vysvětlení', errWord:'chyba',
+  row1:'Váha W sdílená (broadcast) přes celou dávku', row2:'Dávková dimenze se přesně shoduje', row3:'Dávková dimenze 1 se rozšíří na 100',
+  row4:'Stejně funguje i s více dávkovými osami', row5:'1D B → násobení maticí a vektorem, poslední osa mizí', row6:'1D A → mizí naopak přední osa', row7:'100 a 64 nelze broadcastovat',
+  match:'sedí', mismatch:'nesedí', scalar:'skalár (0-d)',
+  errEmpty:'Zadej prosím tvar.', errNaN:'Jen čísla oddělená čárkami, např. 100,20,30',
+  errLast:(a,b)=>`Poslední osa A (${a}) nesedí s osou B (${b}).`,
+  errBatch:(i,a,b)=>`Dávkové dimenze nelze broadcastovat (pozice ${i}: ${a} vs ${b}).`,
+  t3Title:'Tok tvarů (B, S, D) v Transformeru',
+  t3Desc:'Váhy jsou 2D — sdílené broadcastem přes (B,S). Součiny dat s daty (Q·Kᵀ, Score·V) vyžadují přesnou shodu dávkových dimenzí (B,h).',
+  archTitle:'Architektura — jeden blok Transformeru',
+  archDesc:'Sleduj tok datových bodů: X vstoupí, rozdělí se do hlav pro attention, spojí se, projde FFN a vyjde se stejným tvarem (B,S,D). Fialové oblouky jsou reziduální spojení.',
+  playFlow:'▶ Přehrát tok tvarů',
+  tWarn:(D,h,dk)=>`⚠ D(${D}) není dělitelné h(${h}) → d_k=${dk}. Uprav D nebo h.`,
+  s1:{tag:'STAGE 1', title:'Up-projection', cap:'Rozšíří embedding každého tokenu do širší vnitřní dimenze.'},
+  s2:{tag:'STAGE 2', title:'Down-projection', cap:'Promítne zpět na původní dimenzi embeddingu D.'},
+  s3:{tag:'STAGE 3', title:'Q·K·V projection', cap:'X se násobí různými vahami a vznikají Q, K, V (zobrazeno jedno).'},
+  s4:{tag:'STAGE 4', title:'Attention score', cap:'Kontrakce přes d_k dává matici skóre (S×S) — jak moc si každá pozice všímá ostatních.'},
+  s5:{tag:'STAGE 5', title:'Attention output', cap:'Váženě sečte V podle skóre a hlavy spojí zpět do (B,S,D).'},
+  reshape1:'↓ reshape: (B,S,D) → (B,h,S,d_k)', reshape2:'↓ reshape: (B,h,S,d_k) → (B,S,D)',
+  t4Title:'Co je afinní transformace?',
+  t4Desc:'Lineární transformace plus posunutí. Jediný rozdíl je bias b — a mění vše, co zobrazení dokáže vyjádřit.',
+  linearCard:'Vždy zobrazí počátek na počátek (x=0 → y=0). Jen přímky/roviny procházející počátkem — žádné posunutí.',
+  affineCard:'Rotace/škálování (W) plus posunutí (b). Bez fixace počátku, přesto přímky zůstávají přímkami a rovnoběžky rovnoběžkami.',
+  nnTitle:'Afinní vrstva v neuronových sítích',
+  nnBody:'Přesně tohle počítá vrstva Dense/Linear. S b je matematicky správný termín <b>afinní</b> — proto kniha <i>Deep Learning from Scratch</i> nazývá tuto vrstvu <b>Affine layer</b>. (<code style="color:var(--cyan)">nn.Linear</code> v PyTorch se jmenuje Linear, ale provádí afinní operaci.)',
+  deepTitle:'Proč je afinní transformace bez fixace počátku v hlubokém učení důležitá',
+  d1Title:'1. Kde se afinita reálně objevuje',
+  d1Body:'Základní plně propojená vrstva JE afinní transformace: y = Wx + b. Wx fixuje počátek; +b jej posouvá. Téměř každá vrstva má strukturu „lineární + bias".',
+  d2Title:'2. Zásadní problém bez biasu',
+  d2Body:'Bez biasu musí rozhodovací hranice procházet počátkem.',
+  d2Example:'<b>2D příklad —</b> Třída A poblíž (3,4),(5,6),(4,5); třída B poblíž (-2,-3),(-4,-1).<br><b>Bez biasu</b> (y=Wx): hranice musí projít (0,0) — data mimo střed téměř nelze oddělit.<br><b>S biasem</b> (y=Wx+b): hranice se pohybuje volně.',
+  d3Title:'3. Proč na tom v hlubokém učení zvlášť záleží',
+  d3a:'<b>Aktivace jsou centrované na 0</b> — ReLU propouští jen x&gt;0, sigmoid/tanh mají největší sklon u 0. Bias umožní neuronu naučit se, KDE se začne aktivovat.',
+  d3b:'<b>Reálná data nejsou centrovaná na počátek</b> — pixely 0–255, průměr málokdy přesně 0. Bias se naučí offset, W se soustředí na směr a měřítko.',
+  d3c:'<b>Omezení se s hloubkou sčítá</b> — malý deficit v každé vrstvě se vrství; hlubší sítě trpí omezením „musí projít počátkem" víc.',
+  d3d:'<b>Optimalizace</b> — bias dělá krajinu ztrátové funkce pružnější a pomáhá vyhnout se sedlovým bodům způsobeným čistě omezením počátku.',
+  d4Title:'4. Praxe',
+  d4Body:'Každý framework zahrnuje bias jako výchozí. <code style="color:var(--cyan)">bias=False</code> jen ve zvláštních případech — např. těsně před BatchNorm (BN už centruje průměr na 0), nebo z teoretických/paměťových důvodů.',
+  dCallout:'<b>Jednou větou:</b> afinní transformace s biasem osvobozuje síť od zbytečného omezení „projít počátkem" — hranice se pohybují volně, spolupracují s aktivacemi a zvládají skutečnou polohu i měřítko dat. Proto je základní stavební jednotkou hlubokého učení afinita, ne čistá linearita.',
+  t5Title:'Kvíz tvarů — předpověz výstup!',
+  t5Desc:'Objeví se náhodné A @ B. Napiš výsledný tvar (např. 100,20,50) — nebo stiskni ERROR, pokud násobení není platné. +10 XP za správnou odpověď, série znásobuje zisk!',
+  quizPanelTitle:'Bojová aréna',
+  quizPlaceholder:'např. 100,20,50',
+  quizCheck:'Zkontrolovat ✓', quizErrorBtn:'ERROR ✗', quizNext:'Nová otázka ↻',
+  quizCorrect:(xp)=>`✓ Správně! +${xp} XP`,
+  quizWrongShape:(ans)=>`✗ Skoro. Správná odpověď: ${ans}`,
+  quizWrongError:'✗ Tohle je ve skutečnosti ERROR — tvary nelze vynásobit.',
+  quizWasValid:(ans)=>`✗ Ve skutečnosti to jde! Výsledek: ${ans}`,
+  badge1:'série 3', badge2:'série 5', badge3:'10 správně', badge4:'20 správně',
+  t6Title:'Spustitelné testy v Pythonu',
+  t6Desc:'PyTorch skript, který vše ověří: dávkový FC řetěz, případy broadcastingu, tok tvarů Transformeru a experiment s biasem i bez něj.',
+  copyBtn:'Kopírovat', copied:'Zkopírováno!'
+}
+};
+
+/* ============================================================
+   state + i18n apply
+   ============================================================ */
+const STATE = { lang:'en', xp:0, streak:0, correct:0, history:[] };
+const $ = id => document.getElementById(id);
+function T(){ return I18N[STATE.lang]; }
+
+function applyI18n(){
+  const t = T();
+  $('mainTitle').innerHTML = t.title;
+  document.querySelectorAll('[data-i18n]').forEach(el=>{
+    const v = t[el.dataset.i18n];
+    if(typeof v === 'string') el.textContent = v;
+  });
+  document.querySelectorAll('[data-i18n-html]').forEach(el=>{
+    const v = t[el.dataset.i18nHtml];
+    if(typeof v === 'string') el.innerHTML = v;
+  });
+  document.querySelectorAll('[data-i18n-ph]').forEach(el=>{
+    const v = t[el.dataset.i18nPh];
+    if(typeof v === 'string') el.placeholder = v;
+  });
+  updateHud();
+  renderBasic(); renderChecker(); renderTransformer(); renderQuizText();
+}
+document.querySelectorAll('#langToggle button').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    STATE.lang = btn.dataset.lang;
+    document.querySelectorAll('#langToggle button').forEach(b=>b.classList.toggle('active', b===btn));
+    document.documentElement.lang = STATE.lang;
+    applyI18n();
+  });
+});
+
+/* ============================================================
+   HUD / gamification
+   ============================================================ */
+function levelIndex(){ return Math.min(4, Math.floor(STATE.xp/50)); }
+function updateHud(){
+  $('xpVal').textContent = STATE.xp;
+  $('streakVal').textContent = STATE.streak;
+  const li = levelIndex();
+  $('levelName').textContent = T().levels[li] + ' · Lv.' + (li+1);
+  const pct = li>=4 ? 100 : ((STATE.xp % 50) / 50 * 100);
+  $('xpFill').style.width = pct + '%';
+}
+function bump(id){
+  const el = $(id);
+  el.classList.remove('bump'); void el.offsetWidth; el.classList.add('bump');
+}
+function addXp(n){
+  STATE.xp += n; bump('xpVal'); updateHud();
+}
+function burst(x, y){
+  const colors = ['#38BDF8','#F5A623','#4ADE80','#A78BFA','#FB7185'];
+  for(let i=0;i<18;i++){
+    const p = document.createElement('div');
+    p.className='particle';
+    p.style.left = x+'px'; p.style.top = y+'px';
+    p.style.background = colors[i % colors.length];
+    document.body.appendChild(p);
+    const ang = Math.random()*Math.PI*2, v = 60+Math.random()*120;
+    const dx = Math.cos(ang)*v, dy = Math.sin(ang)*v - 60;
+    p.animate([
+      {transform:'translate(0,0) rotate(0deg)', opacity:1},
+      {transform:`translate(${dx}px,${dy+140}px) rotate(${Math.random()*720-360}deg)`, opacity:0}
+    ], {duration:900+Math.random()*500, easing:'cubic-bezier(.2,.6,.3,1)'});
+    setTimeout(()=>p.remove(), 1500);
+  }
+}
+
+/* ============================================================
+   tabs
+   ============================================================ */
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.tabpanel').forEach(p=>p.classList.remove('active'));
+    btn.classList.add('active');
+    $('tab-'+btn.dataset.tab).classList.add('active');
+  });
+});
+
+/* ============================================================
+   shared stage render helpers
+   ============================================================ */
+function cell(sym,val,role){return `<div class="cell r-${role}"><span class="sym">${sym}</span><span class="val">${val}</span></div>`;}
+function box(label,cells){return `<div class="tbox"><div class="tbox-label">${label}</div><div class="tbox-dims">${cells.join('')}</div></div>`;}
+function opBadge(k,ok){const t=T(); return `<div class="op"><div class="op-sym">×</div><div class="op-badge ${ok?'ok':'bad'}">k=${k} ${ok?t.match:t.mismatch}</div></div>`;}
+function arrowOp(){return `<div class="op"><div class="op-sym">→</div></div>`;}
+function stageHtml(meta,row,reshapeNote){
+  return `<div class="stage"><div class="stage-head"><span class="stage-tag">${meta.tag}</span><h3>${meta.title}</h3></div>
+  <p class="stage-caption">${meta.cap}</p><div class="flow-row">${row}</div>
+  ${reshapeNote?`<div class="reshape">${reshapeNote}</div>`:''}</div>`;
+}
+
+/* ============================================================
+   TAB 1: batch flow
+   ============================================================ */
+const Nel=$('N');
+function renderBasic(){
+  const t=T();
+  const N=+Nel.value;
+  $('vN').textContent=N;
+  Nel.style.setProperty('--pct',((N-1)/2047*100)+'%');
+  const row1 = box('X',[cell('N',N,'batch'),cell('D',784,'contract')]) + opBadge(784,true) +
+    box('W1',[cell('D',784,'contract'),cell('·',50,'free')]) + arrowOp() +
+    box('',[cell('N',N,'batch'),cell('',50,'free')]);
+  const row2 = box('',[cell('N',N,'batch'),cell('',50,'contract')]) + opBadge(50,true) +
+    box('W2',[cell('',50,'contract'),cell('',100,'free')]) + arrowOp() +
+    box('',[cell('N',N,'batch'),cell('',100,'free')]);
+  const row3 = box('',[cell('N',N,'batch'),cell('',100,'contract')]) + opBadge(100,true) +
+    box('W3',[cell('',100,'contract'),cell('',10,'free')]) + arrowOp() +
+    box('Y',[cell('N',N,'batch'),cell('',10,'free')]);
+  $('basicFlow').innerHTML = stageHtml(t.l1,row1)+stageHtml(t.l2,row2)+stageHtml(t.l3,row3);
+}
+Nel.addEventListener('input',renderBasic);
+document.querySelectorAll('#tab-basic .preset').forEach(p=>{
+  p.addEventListener('click',()=>{Nel.value=p.dataset.n; renderBasic();});
+});
+
+/* ============================================================
+   TAB 2: shape checker
+   ============================================================ */
+function parseShape(str){
+  str=(str||'').trim().replace(/[()]/g,'');
+  if(str==='') return [];
+  return str.split(',').map(s=>s.trim()).filter(s=>s!=='').map(Number);
+}
+function broadcastBatch(aB,bB){
+  const la=aB.length, lb=bB.length, n=Math.max(la,lb);
+  let out=[];
+  for(let i=0;i<n;i++){
+    const av = i<n-la ? 1 : aB[i-(n-la)];
+    const bv = i<n-lb ? 1 : bB[i-(n-lb)];
+    if(av!==bv && av!==1 && bv!==1) return {error:true,i,av,bv};
+    out.push(Math.max(av,bv));
+  }
+  return {error:false,result:out};
+}
+function matmulShape(aIn,bIn){
+  const t=T();
+  if(aIn.length===0||bIn.length===0) return {error:t.errEmpty};
+  if(aIn.some(isNaN)||bIn.some(isNaN)) return {error:t.errNaN};
+  let a=aIn.slice(), b=bIn.slice(), sqF=false, sqB=false;
+  if(a.length===1){a=[1,a[0]]; sqF=true;}
+  if(b.length===1){b=[b[0],1]; sqB=true;}
+  const ak=a[a.length-1], bk=b[b.length-2];
+  if(ak!==bk) return {error:t.errLast(ak,bk), isShapeError:true};
+  const bc=broadcastBatch(a.slice(0,-2), b.slice(0,-2));
+  if(bc.error) return {error:t.errBatch(bc.i,bc.av,bc.bv), isShapeError:true};
+  let res=bc.result.concat([a[a.length-2], b[b.length-1]]);
+  if(sqF) res.splice(res.length-2,1);
+  if(sqB) res.splice(res.length-1,1);
+  if(sqF&&sqB) return {result:t.scalar, arr:[]};
+  return {result:'('+res.join(',')+')', arr:res};
+}
+function renderChecker(){
+  const a=parseShape($('shapeA').value), b=parseShape($('shapeB').value);
+  const r=matmulShape(a,b);
+  if(r.error){
+    $('checkerWarn').className='warn show'; $('checkerWarn').textContent='⚠ '+r.error;
+    $('checkerOk').className='ok-box';
+  } else {
+    $('checkerOk').className='ok-box show';
+    $('checkerOk').innerHTML=`✓ (${a.join(',')}) @ (${b.join(',')}) → <b>${r.result}</b>`;
+    $('checkerWarn').className='warn';
+  }
+}
+$('shapeA').addEventListener('input',renderChecker);
+$('shapeB').addEventListener('input',renderChecker);
+document.querySelectorAll('#tab-pytorch .preset').forEach(p=>{
+  p.addEventListener('click',()=>{$('shapeA').value=p.dataset.a; $('shapeB').value=p.dataset.b; renderChecker();});
+});
+
+/* ============================================================
+   TAB 3: transformer
+   ============================================================ */
+const tEls={B:$('B'),S:$('S'),D:$('D'),H:$('H'),Dff:$('Dff')};
+function renderTransformer(){
+  const t=T();
+  const B=+tEls.B.value,S=+tEls.S.value,D=+tEls.D.value,h=+tEls.H.value,Dff=+tEls.Dff.value;
+  const div=(D%h===0), dk=D/h, dkD=div?dk:dk.toFixed(1), dkRole=div?'contract':'warn';
+  $('vB').textContent=B; $('vS').textContent=S; $('vD').textContent=D; $('vH').textContent=h; $('vDff').textContent=Dff;
+  tEls.B.style.setProperty('--pct',((B-1)/127*100)+'%');
+  tEls.S.style.setProperty('--pct',((S-1)/511*100)+'%');
+  tEls.D.style.setProperty('--pct',((D-16)/1008*100)+'%');
+  tEls.Dff.style.setProperty('--pct',((Dff-64)/4032*100)+'%');
+  if(!div){ $('tWarn').className='warn show'; $('tWarn').textContent=t.tWarn(D,h,dkD); }
+  else { $('tWarn').className='warn'; }
+  $('tSummary').innerHTML=`B=<b>${B}</b> · S=<b>${S}</b> · D=<b>${D}</b> · h=<b>${h}</b> · d_k=<b>${dkD}</b> · D_ff=<b>${Dff}</b>`;
+
+  const s1=stageHtml(t.s1,
+    box('X',[cell('B',B,'batch'),cell('S',S,'batch'),cell('D',D,'contract')])+opBadge(D,true)+
+    box('W₁',[cell('D',D,'contract'),cell('D_ff',Dff,'free')])+arrowOp()+
+    box('H',[cell('B',B,'batch'),cell('S',S,'batch'),cell('D_ff',Dff,'free')]));
+  const s2=stageHtml(t.s2,
+    box('H',[cell('B',B,'batch'),cell('S',S,'batch'),cell('D_ff',Dff,'contract')])+opBadge(Dff,true)+
+    box('W₂',[cell('D_ff',Dff,'contract'),cell('D',D,'free')])+arrowOp()+
+    box('Y',[cell('B',B,'batch'),cell('S',S,'batch'),cell('D',D,'free')]));
+  $('ffnStages').innerHTML=s1+s2;
+
+  const s3=stageHtml(t.s3,
+    box('X',[cell('B',B,'batch'),cell('S',S,'batch'),cell('D',D,'contract')])+opBadge(D,true)+
+    box('W_q',[cell('D',D,'contract'),cell('D',D,'free')])+arrowOp()+
+    box('Q',[cell('B',B,'batch'),cell('S',S,'batch'),cell('D',D,'free')]), t.reshape1);
+  const s4=stageHtml(t.s4,
+    box('Q',[cell('B',B,'batch'),cell('h',h,'batch'),cell('S',S,'free'),cell('d_k',dkD,dkRole)])+opBadge(dkD,div)+
+    box('Kᵀ',[cell('B',B,'batch'),cell('h',h,'batch'),cell('d_k',dkD,dkRole),cell('S',S,'free')])+arrowOp()+
+    box('Score',[cell('B',B,'batch'),cell('h',h,'batch'),cell('S',S,'free'),cell('S',S,'free')]));
+  const s5=stageHtml(t.s5,
+    box('Score',[cell('B',B,'batch'),cell('h',h,'batch'),cell('S',S,'free'),cell('S',S,'contract')])+opBadge(S,true)+
+    box('V',[cell('B',B,'batch'),cell('h',h,'batch'),cell('S',S,'contract'),cell('d_k',dkD,dkRole)])+arrowOp()+
+    box('Out',[cell('B',B,'batch'),cell('h',h,'batch'),cell('S',S,'free'),cell('d_k',dkD,dkRole)]), t.reshape2);
+  $('attnStages').innerHTML=s3+s4+s5;
+}
+Object.values(tEls).forEach(el=>el.addEventListener('input',renderTransformer));
+
+$('playFlowBtn').addEventListener('click', ()=>{
+  const stages=[...document.querySelectorAll('#ffnStages .stage, #attnStages .stage')];
+  stages.forEach(s=>s.classList.remove('flash'));
+  stages.forEach((s,i)=>{
+    setTimeout(()=>{
+      stages.forEach(x=>x.classList.remove('flash'));
+      s.classList.add('flash');
+      s.scrollIntoView({behavior:'smooth', block:'center'});
+    }, i*850);
+  });
+  setTimeout(()=>stages.forEach(s=>s.classList.remove('flash')), stages.length*850+900);
+});
+
+/* ============================================================
+   TAB 5: quiz
+   ============================================================ */
+let quiz = null;
+const rnd = a => a[Math.floor(Math.random()*a.length)];
+const DIMS = [2,4,8,16,20,30,32,50,64,100,128];
+function genQuiz(){
+  const b=rnd(DIMS), m=rnd(DIMS), k=rnd(DIMS), n=rnd(DIMS), b2=rnd(DIMS.filter(x=>x!==b && x!==1));
+  let k2=rnd(DIMS.filter(x=>x!==k));
+  const kind = rnd(['share','share','exact','one','multi','vec','vecA','errK','errK','errB']);
+  let A,B2;
+  switch(kind){
+    case 'share': A=[b,m,k]; B2=[k,n]; break;
+    case 'exact': A=[b,m,k]; B2=[b,k,n]; break;
+    case 'one':   A=[b,m,k]; B2=[1,k,n]; break;
+    case 'multi': A=[rnd([2,4,8]),b,m,k]; B2=[k,n]; break;
+    case 'vec':   A=[b,m,k]; B2=[k]; break;
+    case 'vecA':  A=[k]; B2=[b,k,n]; break;
+    case 'errK':  A=[b,m,k]; B2=[k2,n]; break;
+    case 'errB':  A=[b,m,k]; B2=[b2,k,n]; break;
+  }
+  const res = matmulShape(A,B2);
+  quiz = { A, B: B2, isError: !!res.error, answerArr: res.arr||[], answerStr: res.error ? null : res.result };
+  $('quizQ').innerHTML = `<span class="qa">(${A.join(',')})</span><span class="qop">@</span><span class="qb">(${B2.join(',')})</span><span class="qop">=</span><span style="color:var(--text-faint)">?</span>`;
+  $('quizAnswer').value='';
+  $('quizOk').className='ok-box'; $('quizWarn').className='warn';
+  $('quizAnswer').focus();
+}
+function renderQuizText(){ if(quiz){ /* question itself is language-neutral */ } }
+function pushHistory(good){
+  STATE.history.push(good);
+  if(STATE.history.length>30) STATE.history.shift();
+  $('quizHistory').innerHTML = STATE.history.map(g=>`<div class="h ${g?'good':'bad'}"></div>`).join('');
+}
+function checkBadges(){
+  if(STATE.streak>=3) $('badge1').classList.add('earned');
+  if(STATE.streak>=5) $('badge2').classList.add('earned');
+  if(STATE.correct>=10) $('badge3').classList.add('earned');
+  if(STATE.correct>=20) $('badge4').classList.add('earned');
+}
+function quizResult(good, msgOk, msgBad, evt){
+  const t=T();
+  if(good){
+    STATE.streak++; STATE.correct++;
+    const gain = 10 + Math.min(20, (STATE.streak-1)*2);
+    addXp(gain); bump('streakVal');
+    $('quizOk').className='ok-box show'; $('quizOk').textContent = t.quizCorrect(gain);
+    $('quizWarn').className='warn';
+    const r = $('quizQ').getBoundingClientRect();
+    burst(r.left + r.width/2, r.top + r.height/2);
+  } else {
+    STATE.streak=0; updateHud();
+    $('quizWarn').className='warn show'; $('quizWarn').textContent = msgBad;
+    $('quizOk').className='ok-box';
+  }
+  pushHistory(good); checkBadges();
+  setTimeout(genQuiz, good?1100:2400);
+}
+function submitShapeAnswer(){
+  if(!quiz) return;
+  const t=T();
+  const typed = parseShape($('quizAnswer').value);
+  if($('quizAnswer').value.trim().toLowerCase()==='error'){ submitErrorAnswer(); return; }
+  if(quiz.isError){
+    quizResult(false, null, t.quizWrongError);
+    return;
+  }
+  const good = typed.length===quiz.answerArr.length && typed.every((v,i)=>v===quiz.answerArr[i]);
+  quizResult(good, null, t.quizWrongShape(quiz.answerStr));
+}
+function submitErrorAnswer(){
+  if(!quiz) return;
+  const t=T();
+  if(quiz.isError) quizResult(true);
+  else quizResult(false, null, t.quizWasValid(quiz.answerStr));
+}
+$('quizCheck').addEventListener('click', submitShapeAnswer);
+$('quizError').addEventListener('click', submitErrorAnswer);
+$('quizNext').addEventListener('click', genQuiz);
+$('quizAnswer').addEventListener('keydown', e=>{ if(e.key==='Enter') submitShapeAnswer(); });
+
+/* ============================================================
+   TAB 6: python code
+   ============================================================ */
+const PY_CODE = String.raw`"""
+Tensor shape playground - companion script for the
+"Batches to Transformers" tensor-shape summary.
+
+Run:
+    pip install torch
+    python test_tensor_shapes.py
+"""
+
+import torch
+
+
+def section(title):
+    print("\n" + "=" * 64)
+    print(title)
+    print("=" * 64)
+
+
+# ---------------------------------------------------------------------
+# 1. Batch processing basics: X -> W1 -> W2 -> W3 -> Y
+# ---------------------------------------------------------------------
+section("1. Batch FC layer chain (X -> W1 -> W2 -> W3 -> Y)")
+
+for N in [1, 100, 768, 1000, 2000]:
+    X = torch.randn(N, 784)
+    W1 = torch.randn(784, 50)
+    W2 = torch.randn(50, 100)
+    W3 = torch.randn(100, 10)
+
+    H1 = X @ W1
+    H2 = H1 @ W2
+    Y = H2 @ W3
+
+    assert Y.shape == (N, 10)
+    print(
+        f"N={N:5d}:  X{tuple(X.shape)} -> H1{tuple(H1.shape)} "
+        f"-> H2{tuple(H2.shape)} -> Y{tuple(Y.shape)}"
+    )
+
+
+# ---------------------------------------------------------------------
+# 2. PyTorch matmul broadcasting cases
+# ---------------------------------------------------------------------
+section("2. matmul broadcasting cases")
+
+cases = [
+    ("broadcast share",   (100, 20, 30), (30, 50)),
+    ("exact batch match", (100, 20, 30), (100, 30, 50)),
+    ("batch=1 expand",    (100, 20, 30), (1, 30, 50)),
+    ("multi batch dims",  (8, 100, 20, 30), (30, 50)),
+    ("B is 1D",           (100, 20, 30), (30,)),
+    ("A is 1D",           (30,), (100, 30, 50)),
+    ("error case",        (100, 20, 30), (64, 30, 50)),
+]
+
+for name, a_shape, b_shape in cases:
+    A = torch.randn(*a_shape)
+    B = torch.randn(*b_shape)
+    try:
+        result = A @ B
+        print(f"{name:20s} {str(a_shape):18s} @ {str(b_shape):16s} -> {tuple(result.shape)}")
+    except RuntimeError as e:
+        print(f"{name:20s} {str(a_shape):18s} @ {str(b_shape):16s} -> ERROR: {e}")
+
+
+# ---------------------------------------------------------------------
+# 3. Transformer shape flow: FFN + self-attention
+# ---------------------------------------------------------------------
+section("3. Transformer shape flow (FFN + self-attention)")
+
+B, S, D, h, D_ff = 32, 16, 512, 8, 2048
+assert D % h == 0, "D must be divisible by h"
+d_k = D // h
+
+X = torch.randn(B, S, D)
+
+# --- feed-forward network ---
+W1 = torch.randn(D, D_ff)
+W2 = torch.randn(D_ff, D)
+H = X @ W1
+Y_ffn = H @ W2
+print(f"FFN:    X{tuple(X.shape)} @ W1{tuple(W1.shape)} -> H{tuple(H.shape)}")
+print(f"        H{tuple(H.shape)} @ W2{tuple(W2.shape)} -> Y{tuple(Y_ffn.shape)}")
+assert Y_ffn.shape == X.shape
+
+# --- Q, K, V projection + head split ---
+Wq = torch.randn(D, D)
+Wk = torch.randn(D, D)
+Wv = torch.randn(D, D)
+
+
+def split_heads(t):
+    # (B, S, D) -> (B, h, S, d_k)
+    return t.view(B, S, h, d_k).transpose(1, 2)
+
+
+Q = split_heads(X @ Wq)
+K = split_heads(X @ Wk)
+V = split_heads(X @ Wv)
+print(f"QKV:    Q{tuple(Q.shape)}  K{tuple(K.shape)}  V{tuple(V.shape)}")
+
+# --- attention score: Q @ Kt, d_k must match ---
+scores = Q @ K.transpose(-2, -1) / (d_k ** 0.5)
+print(
+    f"Score:  Q{tuple(Q.shape)} @ Kt{tuple(K.transpose(-2, -1).shape)} "
+    f"-> {tuple(scores.shape)}"
+)
+assert scores.shape == (B, h, S, S)
+
+attn = torch.softmax(scores, dim=-1)
+
+# --- attention output, merge heads back to (B, S, D) ---
+out = attn @ V
+print(f"Out:    attn{tuple(attn.shape)} @ V{tuple(V.shape)} -> {tuple(out.shape)}")
+
+out_merged = out.transpose(1, 2).contiguous().view(B, S, D)
+print(f"Merge:  {tuple(out.shape)} -> {tuple(out_merged.shape)}")
+assert out_merged.shape == (B, S, D)
+
+
+# ---------------------------------------------------------------------
+# 4. Why bias matters: affine (with bias) vs pure linear (no bias)
+# ---------------------------------------------------------------------
+section("4. Affine vs linear: does the decision boundary need the origin?")
+
+torch.manual_seed(0)
+
+# Two clusters, both placed far from the origin, not symmetric about it.
+class_a = torch.randn(50, 2) * 0.5 + torch.tensor([4.0, 5.0])
+class_b = torch.randn(50, 2) * 0.5 + torch.tensor([-3.0, -2.0])
+Xc = torch.cat([class_a, class_b])
+yc = torch.cat([torch.ones(50), torch.zeros(50)])
+
+
+def train(model, epochs=300, lr=0.1):
+    opt = torch.optim.SGD(model.parameters(), lr=lr)
+    loss_fn = torch.nn.BCEWithLogitsLoss()
+    for _ in range(epochs):
+        opt.zero_grad()
+        pred = model(Xc).squeeze(-1)
+        loss = loss_fn(pred, yc)
+        loss.backward()
+        opt.step()
+    with torch.no_grad():
+        pred = (torch.sigmoid(model(Xc).squeeze(-1)) > 0.5).float()
+        acc = (pred == yc).float().mean().item()
+    return acc
+
+
+linear_only = torch.nn.Linear(2, 1, bias=False)  # y = Wx        (forced through origin)
+affine = torch.nn.Linear(2, 1, bias=True)        # y = Wx + b    (free boundary)
+
+acc_linear = train(linear_only)
+acc_affine = train(affine)
+
+print(f"accuracy without bias (boundary forced through origin): {acc_linear * 100:5.1f}%")
+print(f"accuracy with bias    (affine, boundary free to move):  {acc_affine * 100:5.1f}%")
+
+print("\nDone.")
+`;
+$('pyCode').textContent = PY_CODE;
+$('copyBtn').addEventListener('click', async ()=>{
+  try{ await navigator.clipboard.writeText(PY_CODE); }
+  catch(e){
+    const ta=document.createElement('textarea');
+    ta.value=PY_CODE; document.body.appendChild(ta); ta.select();
+    document.execCommand('copy'); document.body.removeChild(ta);
+  }
+  const btn=$('copyBtn');
+  btn.classList.add('copied'); btn.textContent=T().copied;
+  setTimeout(()=>{btn.classList.remove('copied'); btn.textContent=T().copyBtn;},1300);
+});
+
+/* ============================================================
+   boot
+   ============================================================ */
+applyI18n();
+genQuiz();
+</script>
+</body>
+</html>

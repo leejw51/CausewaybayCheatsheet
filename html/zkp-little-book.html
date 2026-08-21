@@ -1,0 +1,1048 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Prove it. Reveal nothing. — An interactive little book on ZKPs</title>
+<style>
+  :root{
+    --paper:#F6F3EC; --paper2:#EFEBE0; --ink:#1B2142; --ink2:#4A5170;
+    --secret:#B06F12; --secret-bg:#FBEED7; --secret-bd:#E4B36A;
+    --ok:#1F7A5C; --ok-bg:#E4F3EC; --ok-bd:#7CC1A6;
+    --bad:#B3362B; --bad-bg:#FBE6E2; --bad-bd:#E39A90;
+    --violet:#5B4FD6; --violet-bg:#EDEBFB;
+    --redact:#2A2F45; --line:#D9D3C4;
+    --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans KR","Noto Sans TC","Noto Sans SC","Noto Sans JP",sans-serif;
+    --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+  body{background:var(--paper);color:var(--ink);font-family:var(--sans);
+       font-size:16px;line-height:1.65;-webkit-font-smoothing:antialiased}
+
+  /* ---------- header ---------- */
+  header{position:sticky;top:0;z-index:50;background:rgba(246,243,236,.92);
+         backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+  .bar{max-width:960px;margin:0 auto;padding:10px 20px;display:flex;
+       align-items:center;gap:14px;flex-wrap:wrap}
+  .wordmark{font-family:var(--serif);font-weight:700;font-size:17px;letter-spacing:-.01em;
+            white-space:nowrap}
+  .wordmark .zk{color:var(--violet)}
+  .langs{display:flex;gap:4px;margin-left:auto;flex-wrap:wrap}
+  .langs button{border:1px solid var(--line);background:transparent;color:var(--ink2);
+    font-family:var(--sans);font-size:12.5px;padding:4px 10px;border-radius:999px;cursor:pointer}
+  .langs button:hover{border-color:var(--violet);color:var(--violet)}
+  .langs button.on{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+  .langs button:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,
+  summary:focus-visible{outline:2px solid var(--violet);outline-offset:2px}
+  nav.toc{max-width:960px;margin:0 auto;padding:0 20px 10px;display:flex;gap:6px;
+          overflow-x:auto;scrollbar-width:none}
+  nav.toc::-webkit-scrollbar{display:none}
+  nav.toc a{font-size:12.5px;color:var(--ink2);text-decoration:none;white-space:nowrap;
+    padding:3px 10px;border-radius:999px;border:1px solid transparent}
+  nav.toc a:hover{color:var(--violet);border-color:var(--line)}
+
+  /* ---------- layout ---------- */
+  main{max-width:960px;margin:0 auto;padding:0 20px 90px}
+  section{padding:58px 0 8px;border-bottom:1px solid var(--line)}
+  .eyebrow{font-family:var(--mono);font-size:11.5px;letter-spacing:.14em;
+           text-transform:uppercase;color:var(--secret);margin-bottom:10px}
+  h1{font-family:var(--serif);font-weight:700;font-size:clamp(38px,7vw,64px);
+     line-height:1.05;letter-spacing:-.02em}
+  h2{font-family:var(--serif);font-weight:700;font-size:clamp(26px,4vw,34px);
+     letter-spacing:-.015em;margin-bottom:14px}
+  h3{font-size:15px;font-weight:650;margin-bottom:6px}
+  p.lead{font-size:clamp(17px,2.4vw,20px);color:var(--ink2);max-width:640px}
+  .prose{max-width:680px;color:var(--ink);margin-bottom:14px}
+  .prose+.prose{margin-top:-4px}
+  .muted{color:var(--ink2)}
+  .small{font-size:13.5px}
+
+  /* ---------- hero ---------- */
+  .hero{padding:74px 0 54px;border-bottom:1px solid var(--line)}
+  .hero .sub{margin-top:18px}
+  .hero-demo{margin-top:30px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .hero-demo input{font-family:var(--mono);font-size:14px;padding:10px 12px;
+    border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--ink);
+    min-width:min(260px,70vw)}
+  .hint{font-family:var(--mono);font-size:12px;color:var(--ink2);margin-top:12px}
+
+  /* ---------- signature components ---------- */
+  .chip{display:inline-flex;align-items:center;gap:7px;font-family:var(--mono);
+    font-size:12.5px;padding:6px 11px;border-radius:9px;border:1px solid var(--secret-bd);
+    background:var(--secret-bg);color:var(--secret);max-width:100%}
+  .chip .dot{width:7px;height:7px;border-radius:50%;background:var(--secret);flex:none}
+  .chip.pub{border-color:var(--ok-bd);background:var(--ok-bg);color:var(--ok)}
+  .chip.pub .dot{background:var(--ok)}
+  .chip code{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .redact{display:inline-block;height:12px;border-radius:3px;background:var(--redact);
+    vertical-align:middle;opacity:.85}
+  .stamp{display:inline-flex;align-items:center;gap:8px;font-family:var(--mono);
+    font-weight:700;font-size:13px;letter-spacing:.09em;padding:8px 14px;
+    border:2.5px solid var(--ok);color:var(--ok);border-radius:8px;
+    transform:rotate(-2deg);text-transform:uppercase;background:transparent}
+  .stamp.bad{border-color:var(--bad);color:var(--bad)}
+  @keyframes thunk{0%{transform:rotate(-2deg) scale(1.6);opacity:0}
+                   100%{transform:rotate(-2deg) scale(1);opacity:1}}
+  .stamp.go{animation:thunk .28s cubic-bezier(.2,1.4,.4,1) both}
+  @media (prefers-reduced-motion:reduce){.stamp.go{animation:none}}
+
+  /* ---------- cards / demos ---------- */
+  .cards3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:22px 0}
+  @media (max-width:720px){.cards3{grid-template-columns:1fr}}
+  .card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px}
+  .card .k{font-family:var(--mono);font-size:11px;letter-spacing:.12em;
+           text-transform:uppercase;color:var(--violet);margin-bottom:8px}
+  .demo{background:#fff;border:1px solid var(--line);border-radius:16px;
+        padding:22px;margin:24px 0}
+  .demo .dhead{display:flex;align-items:baseline;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+  .demo .dhead h3{font-family:var(--serif);font-size:19px;margin:0}
+  .demo .dhead .tag{font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;
+    text-transform:uppercase;color:var(--paper);background:var(--violet);
+    padding:3px 8px;border-radius:999px}
+  .btn{font-family:var(--sans);font-size:14px;font-weight:600;color:var(--paper);
+    background:var(--ink);border:1px solid var(--ink);border-radius:10px;
+    padding:9px 16px;cursor:pointer}
+  .btn:hover{background:var(--violet);border-color:var(--violet)}
+  .btn.ghost{background:transparent;color:var(--ink);border-color:var(--line)}
+  .btn.ghost:hover{color:var(--violet);border-color:var(--violet);background:transparent}
+  .btn:disabled{opacity:.4;cursor:not-allowed}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .split{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}
+  @media (max-width:720px){.split{grid-template-columns:1fr}}
+  .panel{border:1px solid var(--line);border-radius:12px;padding:14px;background:var(--paper)}
+  .panel .ph{font-family:var(--mono);font-size:11px;letter-spacing:.12em;
+    text-transform:uppercase;margin-bottom:10px;display:flex;align-items:center;gap:7px}
+  .panel.prover .ph{color:var(--secret)}
+  .panel.verifier .ph{color:var(--ok)}
+  .kv{display:flex;justify-content:space-between;gap:10px;font-size:13.5px;
+      padding:5px 0;border-bottom:1px dashed var(--line)}
+  .kv:last-child{border-bottom:none}
+  .kv .v{font-family:var(--mono);font-size:12.5px;text-align:right;word-break:break-all}
+  .moves{display:flex;gap:8px}
+  .moves button{font-size:26px;background:#fff;border:1.5px solid var(--line);
+    border-radius:12px;padding:8px 14px;cursor:pointer;line-height:1}
+  .moves button.sel{border-color:var(--violet);background:var(--violet-bg)}
+  input[type=range]{accent-color:var(--violet);width:min(280px,100%)}
+  select{font-family:var(--mono);font-size:13px;padding:7px 10px;border-radius:9px;
+    border:1px solid var(--line);background:#fff;color:var(--ink)}
+  .note{border-left:3px solid var(--secret-bd);background:var(--secret-bg);
+    border-radius:0 10px 10px 0;padding:12px 14px;font-size:14px;margin:16px 0;max-width:680px}
+  .note.g{border-left-color:var(--ok-bd);background:var(--ok-bg)}
+
+  /* ---------- circuit ---------- */
+  .gates{display:grid;gap:8px;margin:14px 0;font-family:var(--mono);font-size:13.5px}
+  .gate{display:flex;align-items:center;gap:10px;border:1px solid var(--line);
+    background:var(--paper);border-radius:10px;padding:9px 12px;flex-wrap:wrap}
+  .gate .op{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;
+    justify-content:center;font-weight:700;flex:none;border:2px solid var(--secret-bd);
+    color:var(--secret);background:#fff}
+  .gate.add .op{border-color:var(--ok-bd);color:var(--ok)}
+  .gate .chk{margin-left:auto;font-weight:700}
+  .gate.pass .chk{color:var(--ok)} .gate.fail{border-color:var(--bad-bd);background:var(--bad-bg)}
+  .gate.fail .chk{color:var(--bad)}
+  .switch{display:inline-flex;align-items:center;gap:8px;font-size:13.5px;cursor:pointer;
+    user-select:none}
+  .switch input{appearance:none;width:38px;height:22px;border-radius:999px;background:#CFC9BA;
+    position:relative;cursor:pointer;transition:background .15s}
+  .switch input:checked{background:var(--bad)}
+  .switch input::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;
+    border-radius:50%;background:#fff;transition:left .15s}
+  .switch input:checked::after{left:19px}
+  .switch.g input:checked{background:var(--ok)}
+
+  /* ---------- passport chain ---------- */
+  .chain{display:flex;flex-direction:column;gap:0;margin:14px 0;max-width:420px}
+  .cbox{border:1.5px solid var(--ok-bd);background:var(--ok-bg);border-radius:11px;
+    padding:10px 14px;font-size:13.5px}
+  .cbox b{font-family:var(--mono);font-size:12.5px}
+  .cbox.sod{border-color:var(--secret-bd);background:var(--secret-bg)}
+  .carrow{align-self:center;color:var(--ink2);font-family:var(--mono);font-size:12px;
+    padding:2px 0}
+
+  /* ---------- code ---------- */
+  details{border:1px solid var(--line);border-radius:12px;background:#fff;margin:10px 0;
+    max-width:760px;overflow:hidden}
+  summary{cursor:pointer;padding:13px 16px;font-weight:600;font-size:14.5px;list-style:none;
+    display:flex;align-items:center;gap:10px}
+  summary::before{content:"▸";color:var(--violet);transition:transform .15s}
+  details[open] summary::before{transform:rotate(90deg)}
+  pre{background:#171C33;color:#DCE1F5;font-family:var(--mono);font-size:12.5px;
+    line-height:1.6;padding:16px 18px;overflow-x:auto;margin:0}
+  pre .c{color:#7E88AF} pre .k{color:#A5B4FC} pre .s{color:#FBBF77}
+
+  footer{max-width:960px;margin:0 auto;padding:34px 20px 60px;color:var(--ink2);
+    font-size:13.5px}
+  a{color:var(--violet)}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="bar">
+    <div class="wordmark"><span class="zk">zk</span>·little book</div>
+    <div class="langs" role="group" aria-label="Language">
+      <button data-lang="en" class="on">EN</button>
+      <button data-lang="ko">한국어</button>
+      <button data-lang="yue">廣東話</button>
+      <button data-lang="zh">中文</button>
+      <button data-lang="ja">日本語</button>
+      <button data-lang="cs">Čeština</button>
+    </div>
+  </div>
+  <nav class="toc">
+    <a href="#s1" data-i18n="nav1"></a>
+    <a href="#s2" data-i18n="nav2"></a>
+    <a href="#s3" data-i18n="nav3"></a>
+    <a href="#s4" data-i18n="nav4"></a>
+    <a href="#s5" data-i18n="nav5"></a>
+    <a href="#s6" data-i18n="nav6"></a>
+  </nav>
+</header>
+
+<main>
+
+<!-- ================= HERO ================= -->
+<div class="hero">
+  <div class="eyebrow" data-i18n="heroEyebrow"></div>
+  <h1 data-i18n="heroTitle"></h1>
+  <p class="lead sub" data-i18n="heroSub"></p>
+  <div class="hero-demo">
+    <input id="heroSecret" data-i18n-ph="heroPlaceholder" aria-label="secret">
+    <button class="btn" id="heroSeal" data-i18n="heroSeal"></button>
+  </div>
+  <div id="heroOut" style="margin-top:12px;display:none" class="row">
+    <span class="chip"><span class="dot"></span><code id="heroChip"></code></span>
+    <span class="small muted" data-i18n="heroCaption"></span>
+  </div>
+  <div class="hint" data-i18n="heroHint"></div>
+</div>
+
+<!-- ================= 1 WHAT IS ZKP ================= -->
+<section id="s1">
+  <div class="eyebrow">01</div>
+  <h2 data-i18n="s1Title"></h2>
+  <p class="prose" data-i18n="s1P1"></p>
+  <div class="cards3">
+    <div class="card"><div class="k" data-i18n="s1C1k"></div><p class="small" data-i18n="s1C1"></p></div>
+    <div class="card"><div class="k" data-i18n="s1C2k"></div><p class="small" data-i18n="s1C2"></p></div>
+    <div class="card"><div class="k" data-i18n="s1C3k"></div><p class="small" data-i18n="s1C3"></p></div>
+  </div>
+
+  <div class="demo">
+    <div class="dhead"><span class="tag" data-i18n="try"></span><h3 data-i18n="caveTitle"></h3></div>
+    <p class="prose small muted" data-i18n="caveDesc"></p>
+    <div class="row">
+      <button class="btn" id="caveRun" data-i18n="caveRun"></button>
+      <button class="btn ghost" id="caveReset" data-i18n="reset"></button>
+    </div>
+    <div class="row" style="margin-top:14px;gap:16px">
+      <div><span class="small muted" data-i18n="caveRounds"></span>
+        <span style="font-family:var(--mono);font-weight:700" id="caveN">0</span></div>
+      <div><span class="small muted" data-i18n="caveOdds"></span>
+        <span style="font-family:var(--mono);font-weight:700" id="caveOddsV">—</span></div>
+    </div>
+    <div id="caveStamp" style="margin-top:12px"></div>
+  </div>
+</section>
+
+<!-- ================= 2 HASH VS COMMITMENT ================= -->
+<section id="s2">
+  <div class="eyebrow">02</div>
+  <h2 data-i18n="s2Title"></h2>
+  <p class="prose" data-i18n="s2P1"></p>
+  <p class="prose" data-i18n="s2P2"></p>
+
+  <div class="demo">
+    <div class="dhead"><span class="tag" data-i18n="try"></span><h3 data-i18n="rpsTitle"></h3></div>
+    <p class="prose small muted" data-i18n="rpsDesc"></p>
+    <div class="row" style="margin-bottom:12px">
+      <div class="moves" id="rpsMoves" role="group">
+        <button data-m="0" aria-label="rock">🪨</button>
+        <button data-m="1" aria-label="paper">📄</button>
+        <button data-m="2" aria-label="scissors">✂️</button>
+      </div>
+      <button class="btn" id="rpsCommit" disabled data-i18n="rpsCommit"></button>
+      <button class="btn ghost" id="rpsReveal" disabled data-i18n="rpsReveal"></button>
+      <button class="btn ghost" id="rpsCheat" disabled data-i18n="rpsCheat"></button>
+      <button class="btn ghost" id="rpsReset" data-i18n="reset"></button>
+    </div>
+    <div class="split">
+      <div class="panel prover">
+        <div class="ph"><span class="chip" style="padding:2px 8px"><span class="dot"></span><span data-i18n="you"></span></span></div>
+        <div class="kv"><span data-i18n="rpsYourMove"></span><span class="v" id="rpsMyMove">—</span></div>
+        <div class="kv"><span>r</span><span class="v" id="rpsR">—</span></div>
+      </div>
+      <div class="panel verifier">
+        <div class="ph"><span class="chip pub" style="padding:2px 8px"><span class="dot"></span><span data-i18n="opponent"></span></span></div>
+        <div class="kv"><span data-i18n="rpsSees"></span><span class="v" id="rpsC">—</span></div>
+        <div class="kv"><span data-i18n="rpsOppMove"></span><span class="v" id="rpsOpp">—</span></div>
+        <div style="margin-top:10px" id="rpsStamp"></div>
+      </div>
+    </div>
+    <div class="note" style="margin-top:16px">
+      <b data-i18n="rpsWhyRTitle"></b> <span data-i18n="rpsWhyR"></span>
+      <div class="row" style="margin-top:10px">
+        <button class="btn ghost" id="rpsAttack" data-i18n="rpsAttack"></button>
+        <span class="small" id="rpsAttackOut" style="font-family:var(--mono)"></span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 3 HOMOMORPHISM ================= -->
+<section id="s3">
+  <div class="eyebrow">03</div>
+  <h2 data-i18n="s3Title"></h2>
+  <p class="prose" data-i18n="s3P1"></p>
+  <p class="prose" style="font-family:var(--mono);font-size:15px">g<sup>a</sup> · g<sup>b</sup> = g<sup>a+b</sup></p>
+
+  <div class="demo">
+    <div class="dhead"><span class="tag" data-i18n="try"></span><h3 data-i18n="homTitle"></h3></div>
+    <p class="prose small muted" data-i18n="homDesc"></p>
+    <div class="row" style="gap:24px">
+      <label class="small">m₁ = <b id="homM1v" style="font-family:var(--mono)">7</b><br>
+        <input type="range" id="homM1" min="0" max="30" value="7"></label>
+      <label class="small">m₂ = <b id="homM2v" style="font-family:var(--mono)">5</b><br>
+        <input type="range" id="homM2" min="0" max="30" value="5"></label>
+    </div>
+    <div class="split">
+      <div class="panel prover">
+        <div class="ph"><span data-i18n="homSealed"></span></div>
+        <div class="kv"><span>C₁ = g<sup>m₁</sup> mod p</span><span class="v" id="homC1"></span></div>
+        <div class="kv"><span>C₂ = g<sup>m₂</sup> mod p</span><span class="v" id="homC2"></span></div>
+        <div class="kv"><span>C₁ · C₂ mod p</span><span class="v" id="homProd"></span></div>
+      </div>
+      <div class="panel verifier">
+        <div class="ph"><span data-i18n="homCheck"></span></div>
+        <div class="kv"><span>g<sup>m₁+m₂</sup> mod p</span><span class="v" id="homDirect"></span></div>
+        <div style="margin-top:12px" id="homStamp"></div>
+        <p class="small muted" style="margin-top:10px" data-i18n="homCaption"></p>
+      </div>
+    </div>
+    <p class="small muted" style="margin-top:10px;font-family:var(--mono)">g = 5, p = 1009</p>
+  </div>
+  <div class="note g" data-i18n="s3Note"></div>
+</section>
+
+<!-- ================= 4 TINY ZKP ================= -->
+<section id="s4">
+  <div class="eyebrow">04</div>
+  <h2 data-i18n="s4Title"></h2>
+  <p class="prose" data-i18n="s4P1"></p>
+
+  <div class="demo">
+    <div class="dhead"><span class="tag" data-i18n="try"></span><h3 data-i18n="cirTitle"></h3></div>
+    <div class="row" style="gap:24px;margin-bottom:6px">
+      <label class="small"><span data-i18n="cirSecret"></span> x = <b id="cirXv" style="font-family:var(--mono)">3</b><br>
+        <input type="range" id="cirX" min="0" max="5" value="3"></label>
+      <label class="switch"><input type="checkbox" id="cirTamper">
+        <span data-i18n="cirTamper"></span></label>
+    </div>
+    <div class="gates" id="cirGates">
+      <div class="gate mul" id="g1"><span class="op">×</span><span>w₁ = x · x</span><span class="v" id="g1v"></span><span class="chk"></span></div>
+      <div class="gate mul" id="g2"><span class="op">×</span><span>w₂ = w₁ · x</span><span class="v" id="g2v"></span><span class="chk"></span></div>
+      <div class="gate add" id="g3"><span class="op">+</span><span>w₃ = w₂ + x</span><span class="v" id="g3v"></span><span class="chk"></span></div>
+      <div class="gate add" id="g4"><span class="op">+</span><span>out = w₃ + 5</span><span class="v" id="g4v"></span><span class="chk"></span></div>
+    </div>
+    <div class="split">
+      <div class="panel prover">
+        <div class="ph"><span data-i18n="proverSees"></span></div>
+        <div class="kv"><span>witness</span><span class="v" id="cirWitness"></span></div>
+      </div>
+      <div class="panel verifier">
+        <div class="ph"><span data-i18n="verifierSees"></span></div>
+        <div class="kv"><span>x</span><span class="v"><span class="redact" style="width:52px"></span></span></div>
+        <div class="kv"><span>w₁ w₂ w₃</span><span class="v"><span class="redact" style="width:84px"></span></span></div>
+        <div class="kv"><span>out</span><span class="v" id="cirOut"></span></div>
+        <div style="margin-top:12px" id="cirStamp"></div>
+      </div>
+    </div>
+  </div>
+  <div class="note g" data-i18n="s4Note"></div>
+</section>
+
+<!-- ================= 5 PASSPORT ================= -->
+<section id="s5">
+  <div class="eyebrow">05</div>
+  <h2 data-i18n="s5Title"></h2>
+  <p class="prose" data-i18n="s5P1"></p>
+
+  <div class="chain">
+    <div class="cbox"><b>CSCA</b> — <span data-i18n="s5Csca"></span></div>
+    <div class="carrow">↓ <span data-i18n="signs"></span></div>
+    <div class="cbox"><b>DSC</b> — <span data-i18n="s5Dsc"></span></div>
+    <div class="carrow">↓ <span data-i18n="signs"></span></div>
+    <div class="cbox sod"><b>SOD</b> — <span data-i18n="s5Sod"></span></div>
+  </div>
+  <p class="prose" data-i18n="s5P2"></p>
+
+  <div class="demo">
+    <div class="dhead"><span class="tag" data-i18n="try"></span><h3 data-i18n="ppTitle"></h3></div>
+    <p class="prose small muted" data-i18n="ppDesc"></p>
+    <div class="row" style="gap:18px;margin-bottom:12px">
+      <label class="switch g"><input type="checkbox" id="ppAge" checked><span data-i18n="ppAge"></span></label>
+      <label class="switch g"><input type="checkbox" id="ppExp" checked><span data-i18n="ppExp"></span></label>
+      <label class="switch g"><input type="checkbox" id="ppNat"><span data-i18n="ppNat"></span></label>
+      <label class="small"><span data-i18n="ppScope"></span>
+        <select id="ppScope">
+          <option value="dex.example">dex.example</option>
+          <option value="game.example">game.example</option>
+        </select></label>
+    </div>
+    <div class="split">
+      <div class="panel prover">
+        <div class="ph"><span class="chip" style="padding:2px 8px"><span class="dot"></span><span data-i18n="ppPhone"></span></span></div>
+        <div class="kv"><span data-i18n="ppName"></span><span class="v">KIM, MINJI</span></div>
+        <div class="kv"><span data-i18n="ppDob"></span><span class="v">1990-03-15</span></div>
+        <div class="kv"><span data-i18n="ppNo"></span><span class="v">M12345678</span></div>
+        <div class="kv"><span data-i18n="ppNatL"></span><span class="v">KOR</span></div>
+        <div class="kv"><span data-i18n="ppExpL"></span><span class="v">2031-06-01</span></div>
+      </div>
+      <div class="panel verifier">
+        <div class="ph"><span class="chip pub" style="padding:2px 8px"><span class="dot"></span><span data-i18n="ppChain"></span></span></div>
+        <div class="kv"><span data-i18n="ppName"></span><span class="v"><span class="redact" style="width:78px"></span></span></div>
+        <div class="kv"><span data-i18n="ppDob"></span><span class="v"><span class="redact" style="width:64px"></span></span></div>
+        <div class="kv"><span data-i18n="ppNo"></span><span class="v"><span class="redact" style="width:70px"></span></span></div>
+        <div class="kv"><span data-i18n="ppNatL"></span><span class="v" id="ppNatOut"></span></div>
+        <div style="margin:10px 0 4px" class="row" id="ppBadges"></div>
+        <div class="kv"><span>nullifier</span><span class="v" id="ppNull"></span></div>
+        <p class="small muted" id="ppNullCap" style="margin-top:8px"></p>
+      </div>
+    </div>
+  </div>
+  <div class="note" data-i18n="s5Note"></div>
+</section>
+
+<!-- ================= 6 CODE ================= -->
+<section id="s6" style="border-bottom:none">
+  <div class="eyebrow">06</div>
+  <h2 data-i18n="s6Title"></h2>
+  <p class="prose" data-i18n="s6P1"></p>
+
+  <details open>
+    <summary data-i18n="code1"></summary>
+<pre><span class="c"># --- Commitment: seal now, open later --------------------------</span>
+<span class="k">def</span> commit(m):
+    r = random_bytes(32)          <span class="c"># one-time blinding value</span>
+    c = sha256(r + m)             <span class="c"># c = H(r || m)</span>
+    <span class="k">return</span> c, (m, r)              <span class="c"># publish c, keep (m, r)</span>
+
+<span class="k">def</span> verify(c, m, r):
+    <span class="k">return</span> c == sha256(r + m)
+
+<span class="c"># bare hash = fingerprint: sha256(m) is the SAME every time,</span>
+<span class="c"># so small secrets can be brute-forced. r blocks that (hiding),</span>
+<span class="c"># and the hash itself blocks changing m later (binding).</span></pre>
+  </details>
+
+  <details>
+    <summary data-i18n="code2"></summary>
+<pre><span class="c"># --- Pedersen: a commitment you can add ------------------------</span>
+<span class="k">def</span> pedersen(m, r):
+    <span class="k">return</span> m * G + r * H          <span class="c"># points on an elliptic curve</span>
+
+<span class="c"># the exponent rule in additive costume:</span>
+<span class="c">#   pedersen(m1,r1) + pedersen(m2,r2) == pedersen(m1+m2, r1+r2)</span>
+<span class="c"># verify sums of hidden amounts without ever seeing them.</span></pre>
+  </details>
+
+  <details>
+    <summary data-i18n="code3"></summary>
+<pre><span class="c"># --- A tiny circuit: "I know x with x**3 + x + 5 == 35" --------</span>
+<span class="k">def</span> make_witness(x):
+    w1 = x * x                    <span class="c"># gate 1  (x=3 -> 9)</span>
+    w2 = w1 * x                   <span class="c"># gate 2  (-> 27)</span>
+    w3 = w2 + x                   <span class="c"># gate 3  (-> 30)</span>
+    out = w3 + 5                  <span class="c"># gate 4  (-> 35)</span>
+    <span class="k">return</span> [1, x, out, w1, w2, w3]
+
+<span class="c"># every gate is one equation; a SNARK compresses</span>
+<span class="c"># "all equations hold" into one short proof. The verifier</span>
+<span class="c"># checks the proof + out == 35, and never sees x.</span></pre>
+  </details>
+
+  <details>
+    <summary data-i18n="code4"></summary>
+<pre><span class="c"># --- Passport statement (what the circuit enforces) ------------</span>
+<span class="c"># private: dg1, sod, dsc_cert          (never leave the phone)</span>
+<span class="c"># public : today, min_age, csca_root, scope</span>
+
+<span class="k">def</span> circuit(private, public):
+    <span class="k">assert</span> merkle_verify(hash(private.dsc_cert), public.csca_root)
+    <span class="k">assert</span> verify_sig(private.dsc_cert.pub, private.sod)
+    <span class="k">assert</span> sha256(private.dg1) == private.sod.dg_hashes[1]
+    <span class="k">assert</span> age(private.dg1.dob, public.today) >= public.min_age
+
+    secret = hash(private.dg1.doc_number, private.dg1.dob)
+    <span class="k">return</span> ok=1, nullifier=hash(secret, public.scope)
+
+<span class="c"># the state's signature travels through the math</span>
+<span class="c"># into one yes/no + an unlinkable nullifier.</span></pre>
+  </details>
+</section>
+
+</main>
+
+<footer>
+  <span data-i18n="footer"></span>
+</footer>
+<script>
+/* =============== i18n =============== */
+const T = {
+en:{
+ nav1:"What is a ZKP", nav2:"Hash vs commitment", nav3:"The exponent trick",
+ nav4:"A tiny ZKP", nav5:"Passport", nav6:"Python pseudocode",
+ heroEyebrow:"An interactive little book", heroTitle:"Prove it.\u00A0Reveal nothing.",
+ heroSub:"Zero-knowledge proofs, explained with things you can poke: sealed commitments, a four-gate circuit, and a passport that never leaves your phone.",
+ heroPlaceholder:"type a secret…", heroSeal:"Seal it",
+ heroCaption:"your secret, sealed with SHA-256. The rest of this page explains what you can do with a seal like this.",
+ heroHint:"6 languages · live demos · no math degree required",
+ try:"try it", reset:"Reset", you:"you (prover)", opponent:"opponent (verifier)",
+ s1Title:"What is a zero-knowledge proof?",
+ s1P1:"A zero-knowledge proof convinces someone that a statement is true — without showing why. “I know the password.” “I'm over 19.” The claim gets verified; the secret itself never appears.",
+ s1C1k:"Completeness", s1C1:"If the statement is true and you play honestly, the proof always convinces.",
+ s1C2k:"Soundness", s1C2:"If the statement is false, no amount of cleverness can fake a convincing proof.",
+ s1C3k:"Zero-knowledge", s1C3:"The verifier learns exactly one bit: “true”. Nothing about the secret leaks.",
+ caveTitle:"The cave game",
+ caveDesc:"A prover claims to know a magic word that opens a door deep inside a ring-shaped cave. Each round, the verifier shouts a random side to exit from. Without the word, each round fails with 50% probability. Watch how fast faking becomes impossible.",
+ caveRun:"Run a round", caveRounds:"rounds passed:", caveOdds:"odds of faking all of them:",
+ caveConvinced:"CONVINCED — KNOWS THE WORD",
+ s2Title:"A hash is not a commitment",
+ s2P1:"A hash is a fingerprint: same input, same output, every single time. That determinism is exactly the problem — if your secret has only a few possible values, anyone can fingerprint every candidate and match yours.",
+ s2P2:"A commitment fixes this by mixing in a one-time random value r before hashing: c = H(r ‖ m). Now the seal reveals nothing (hiding) — and you still can't change your mind later (binding). Commit first, reveal later.",
+ rpsTitle:"Commit–reveal rock · paper · scissors",
+ rpsDesc:"Pick a move and seal it with a real SHA-256 commitment. Your opponent moves only after seeing your seal — then you reveal, and the seal is checked. Try the cheat button to feel binding.",
+ rpsCommit:"Commit", rpsReveal:"Reveal & verify", rpsCheat:"Try to cheat",
+ rpsYourMove:"your move", rpsSees:"sees only c =", rpsOppMove:"their move",
+ rpsValid:"SEAL VALID", rpsInvalid:"SEAL BROKEN — CHEAT DETECTED",
+ rpsWhyRTitle:"Why the random r matters.",
+ rpsWhyR:"Seal a move with a bare hash — no r — and an attacker just hashes all three moves and compares. With r, the same attack must guess a 256-bit value.",
+ rpsAttack:"Attack a bare hash", rpsAttackNone:"commit a move first",
+ rpsAttackOut:"cracked instantly → your move is {m} (3 hashes tried). With r: ~2¹²⁸ tries.",
+ s3Title:"One school rule powers half of crypto",
+ s3P1:"Multiplying powers of the same base adds the exponents. Hide a number in the exponent, and anyone can multiply the sealed versions — the hidden numbers add themselves, unseen. That property is called homomorphism.",
+ homTitle:"Add numbers you cannot see",
+ homDesc:"Slide the two hidden numbers. The left panel only ever multiplies sealed values; the right panel checks the result against a fresh seal of the sum.",
+ homSealed:"sealed values", homCheck:"verifier's check", homMatch:"MATCH — SUMS VERIFIED",
+ homCaption:"the product of two seals equals the seal of the sum — every time, for any m₁, m₂.",
+ s3Note:"Pedersen commitments and confidential transactions run on exactly this: a blockchain verifies that hidden amounts balance (inputs = outputs) without ever seeing a single amount.",
+ s4Title:"A really simple ZKP",
+ s4P1:"Claim: “I know x such that x³ + x + 5 = 35.” Unroll the formula into four tiny equations — a circuit. The solution values that fill every wire are called the witness. The verifier checks equations, not the computation — and only ever sees the public output.",
+ cirTitle:"A four-gate circuit you can drive",
+ cirSecret:"secret", cirTamper:"tamper with a wire (fake witness)",
+ proverSees:"prover sees (private)", verifierSees:"verifier sees (public)",
+ cirValid:"PROOF VALID", cirInvalid:"REJECTED",
+ s4Note:"In a real SNARK, all those green checks get compressed into one short proof — a few hundred bytes — so the verifier confirms every equation at once without seeing a single wire value.",
+ s5Title:"The passport example",
+ s5P1:"Your passport chip already carries government-signed data (ICAO 9303): personal data (DG1), a photo (DG2), and a security object (SOD) holding a hash of everything, signed by the state.",
+ s5Csca:"country root key, kept offline", s5Dsc:"document signer, rotated regularly",
+ s5Sod:"hashes of your data + the state's signature", signs:"signs",
+ s5P2:"A ZK circuit re-runs that signature check privately on your phone, then proves only the facts you choose. The state's signature travels through the math — no new authority needed.",
+ ppTitle:"Selective disclosure, live",
+ ppDesc:"Toggle what to prove. The left panel is your phone; the right is what the blockchain actually receives. Switch the service to watch the nullifier change — same passport, unlinkable identities.",
+ ppAge:"prove age ≥ 19", ppExp:"prove not expired", ppNat:"reveal nationality",
+ ppScope:"service:", ppPhone:"your phone (private)", ppChain:"on-chain (public)",
+ ppName:"name", ppDob:"date of birth", ppNo:"passport №", ppNatL:"nationality", ppExpL:"expires",
+ ppBadgeAge:"age ≥ 19 ✓", ppBadgeExp:"not expired ✓",
+ ppNullCap:"same passport + same service → same nullifier (blocks duplicates). Different service → different nullifier (blocks tracking).",
+ s5Note:"Honest limit: this proves possession of valid passport data — not that the passport is yours. Binding the document to a person (face match) lives outside the ZK math.",
+ s6Title:"The whole book in Python pseudocode",
+ s6P1:"Four snippets, each matching one demo above. Comments carry the ideas; the code is deliberately boring.",
+ code1:"1 · Commitment (and why a bare hash fails)",
+ code2:"2 · Pedersen — the exponent rule at work",
+ code3:"3 · The tiny circuit and its witness",
+ code4:"4 · The passport statement",
+ footer:"An interactive little book on zero-knowledge proofs · hashes computed live in your browser · share freely."
+},
+ko:{
+ nav1:"ZKP란", nav2:"해시 vs 커밋트먼트", nav3:"지수 법칙의 마법",
+ nav4:"아주 작은 ZKP", nav5:"여권 예제", nav6:"Python 의사코드",
+ heroEyebrow:"인터랙티브 작은 책", heroTitle:"증명하되,\u00A0드러내지 않기.",
+ heroSub:"영지식 증명을 직접 만져보며 배웁니다: 봉인된 커밋트먼트, 게이트 4개짜리 회로, 그리고 폰 밖으로 나가지 않는 여권.",
+ heroPlaceholder:"비밀을 입력해 보세요…", heroSeal:"봉인하기",
+ heroCaption:"SHA-256으로 봉인된 당신의 비밀. 이 봉인으로 무엇을 할 수 있는지가 이 페이지의 내용입니다.",
+ heroHint:"6개 언어 · 라이브 데모 · 수학 학위 불필요",
+ try:"직접 해보기", reset:"초기화", you:"나 (증명자)", opponent:"상대 (검증자)",
+ s1Title:"영지식 증명이란?",
+ s1P1:"영지식 증명은 어떤 문장이 참이라는 것을 — 이유를 보여주지 않고 — 납득시킵니다. “비밀번호를 안다.” “19세 이상이다.” 주장은 검증되지만, 비밀 자체는 끝까지 등장하지 않습니다.",
+ s1C1k:"완전성", s1C1:"문장이 참이고 정직하게 행동하면, 증명은 항상 성공합니다.",
+ s1C2k:"건전성", s1C2:"문장이 거짓이면, 어떤 꼼수로도 그럴듯한 증명을 만들 수 없습니다.",
+ s1C3k:"영지식성", s1C3:"검증자가 배우는 것은 “참” 한 비트뿐. 비밀은 새지 않습니다.",
+ caveTitle:"동굴 게임",
+ caveDesc:"고리 모양 동굴 안쪽 문을 여는 주문을 안다고 주장하는 증명자. 매 라운드 검증자가 나올 방향을 무작위로 외칩니다. 주문을 모르면 라운드마다 50% 확률로 실패 — 속임수가 얼마나 빨리 불가능해지는지 보세요.",
+ caveRun:"라운드 실행", caveRounds:"통과한 라운드:", caveOdds:"전부 속였을 확률:",
+ caveConvinced:"납득 — 주문을 알고 있음",
+ s2Title:"해시는 커밋트먼트가 아니다",
+ s2P1:"해시는 지문입니다: 같은 입력이면 언제나 같은 출력. 바로 그 결정성이 문제입니다 — 비밀의 후보가 몇 개 안 되면, 누구든 모든 후보의 지문을 찍어 당신 것과 대조할 수 있으니까요.",
+ s2P2:"커밋트먼트는 해시 전에 일회용 난수 r을 섞어 이를 해결합니다: c = H(r ‖ m). 이제 봉인은 아무것도 드러내지 않고(hiding), 그러면서도 나중에 말을 바꿀 수 없습니다(binding). 먼저 봉인, 나중에 공개.",
+ rpsTitle:"커밋-공개 가위바위보",
+ rpsDesc:"수를 고르고 진짜 SHA-256 커밋으로 봉인하세요. 상대는 봉인을 본 뒤에야 수를 냅니다 — 그다음 공개하면 봉인이 검사됩니다. 치트 버튼으로 binding을 체감해 보세요.",
+ rpsCommit:"봉인 (Commit)", rpsReveal:"공개 & 검증", rpsCheat:"몰래 바꿔치기",
+ rpsYourMove:"내 수", rpsSees:"보이는 것은 c =", rpsOppMove:"상대 수",
+ rpsValid:"봉인 유효", rpsInvalid:"봉인 파손 — 치트 적발",
+ rpsWhyRTitle:"난수 r이 중요한 이유.",
+ rpsWhyR:"r 없이 맨 해시로 봉인하면, 공격자는 세 가지 수를 전부 해시해 비교하면 끝. r이 있으면 같은 공격에 256비트 값을 맞혀야 합니다.",
+ rpsAttack:"맨 해시 공격하기", rpsAttackNone:"먼저 수를 봉인하세요",
+ rpsAttackOut:"즉시 해독 → 당신의 수는 {m} (해시 3번). r이 있다면: 약 2¹²⁸번 필요.",
+ s3Title:"학교에서 배운 법칙 하나가 암호학 절반을 떠받친다",
+ s3P1:"같은 밑의 거듭제곱을 곱하면 지수가 더해집니다. 숫자를 지수 자리에 숨기면, 누구든 봉인본끼리 곱할 수 있고 — 숨은 숫자들은 보이지 않는 채 스스로 더해집니다. 이 성질이 준동형성(homomorphism)입니다.",
+ homTitle:"보이지 않는 숫자 더하기",
+ homDesc:"숨겨진 두 숫자를 슬라이드하세요. 왼쪽 패널은 봉인된 값만 곱하고, 오른쪽 패널은 그 결과를 합의 새 봉인과 대조합니다.",
+ homSealed:"봉인된 값", homCheck:"검증자의 확인", homMatch:"일치 — 합 검증 완료",
+ homCaption:"두 봉인의 곱 = 합의 봉인. 어떤 m₁, m₂를 골라도 항상 성립합니다.",
+ s3Note:"Pedersen 커밋트먼트와 기밀 거래가 정확히 이 원리로 굴러갑니다: 블록체인은 금액을 하나도 보지 못한 채 숨은 금액들의 균형(입금 = 출금)을 검증합니다.",
+ s4Title:"정말 간단한 ZKP",
+ s4P1:"주장: “x³ + x + 5 = 35를 만족하는 x를 안다.” 식을 작은 등식 4개로 펼친 것이 회로입니다. 모든 와이어를 채우는 값들이 witness. 검증자는 계산이 아니라 등식을 검사하고, 공개 출력만 봅니다.",
+ cirTitle:"직접 굴려보는 4게이트 회로",
+ cirSecret:"비밀", cirTamper:"와이어 조작하기 (가짜 witness)",
+ proverSees:"증명자가 보는 것 (비공개)", verifierSees:"검증자가 보는 것 (공개)",
+ cirValid:"증명 유효", cirInvalid:"거부됨",
+ s4Note:"실제 SNARK에서는 저 초록 체크 전부가 몇백 바이트짜리 증명 하나로 압축됩니다 — 검증자는 와이어 값을 하나도 보지 않고 모든 등식을 한 번에 확인합니다.",
+ s5Title:"여권 예제",
+ s5P1:"여권 칩에는 이미 정부가 서명한 데이터가 들어 있습니다(ICAO 9303): 개인정보(DG1), 사진(DG2), 그리고 전체의 해시에 국가가 서명한 보안 객체(SOD).",
+ s5Csca:"국가 루트 키, 오프라인 보관", s5Dsc:"문서 서명 인증서, 주기적 교체",
+ s5Sod:"내 데이터의 해시들 + 국가의 서명", signs:"서명",
+ s5P2:"ZK 회로는 그 서명 검증을 폰 안에서 비공개로 다시 수행하고, 당신이 고른 사실만 증명합니다. 국가의 서명이 수학을 타고 전달되므로 — 새로운 인증 기관이 필요 없습니다.",
+ ppTitle:"선택적 공개, 라이브",
+ ppDesc:"증명할 항목을 토글하세요. 왼쪽은 당신의 폰, 오른쪽은 블록체인이 실제로 받는 것. 서비스를 바꿔 nullifier가 변하는 걸 보세요 — 같은 여권, 연결 불가능한 신원.",
+ ppAge:"나이 ≥ 19 증명", ppExp:"미만료 증명", ppNat:"국적 공개",
+ ppScope:"서비스:", ppPhone:"내 폰 (비공개)", ppChain:"온체인 (공개)",
+ ppName:"이름", ppDob:"생년월일", ppNo:"여권번호", ppNatL:"국적", ppExpL:"만료일",
+ ppBadgeAge:"나이 ≥ 19 ✓", ppBadgeExp:"미만료 ✓",
+ ppNullCap:"같은 여권 + 같은 서비스 → 같은 nullifier (중복 차단). 다른 서비스 → 다른 nullifier (추적 차단).",
+ s5Note:"정직한 한계: 이것은 '유효한 여권 데이터의 소유'를 증명할 뿐, 그 여권이 당신 것임은 증명하지 못합니다. 문서와 사람을 묶는 일(얼굴 대조)은 ZK 수학 바깥의 문제입니다.",
+ s6Title:"책 전체를 Python 의사코드로",
+ s6P1:"위의 데모와 하나씩 짝을 이루는 네 개의 스니펫. 아이디어는 주석에, 코드는 일부러 심심하게.",
+ code1:"1 · 커밋트먼트 (맨 해시가 실패하는 이유)",
+ code2:"2 · Pedersen — 지수 법칙의 실전",
+ code3:"3 · 작은 회로와 witness",
+ code4:"4 · 여권 명제",
+ footer:"영지식 증명 인터랙티브 작은 책 · 해시는 브라우저에서 실시간 계산 · 자유롭게 공유하세요."
+},
+yue:{
+ nav1:"咩係 ZKP", nav2:"Hash 同承諾", nav3:"指數魔法",
+ nav4:"迷你 ZKP", nav5:"護照例子", nav6:"Python 偽代碼",
+ heroEyebrow:"互動小書", heroTitle:"證明到,\u00A0但咩都唔露.",
+ heroSub:"零知識證明,俾你親手玩住學:封印咗嘅承諾、四個閘嘅電路,仲有一本永遠唔會離開你部電話嘅護照。",
+ heroPlaceholder:"打個秘密入嚟…", heroSeal:"封印",
+ heroCaption:"你個秘密,用 SHA-256 封咗印。呢個封印可以做到啲乜,就係成頁想講嘅嘢。",
+ heroHint:"6 種語言 · 即場示範 · 唔使數學學位",
+ try:"試下", reset:"重設", you:"你 (證明者)", opponent:"對手 (驗證者)",
+ s1Title:"零知識證明係咩?",
+ s1P1:"零知識證明可以令人信服一句嘢係真 — 但唔使話俾佢知點解。「我知道密碼。」「我夠19歲。」個主張會被驗證,但秘密本身由頭到尾都唔會出現。",
+ s1C1k:"完備性", s1C1:"如果句嘢係真,而你老老實實咁做,個證明一定成功。",
+ s1C2k:"可靠性", s1C2:"如果句嘢係假,點樣出術都整唔到一個令人信服嘅證明。",
+ s1C3k:"零知識", s1C3:"驗證者淨係學到一個 bit:「真」。秘密一啲都唔會漏。",
+ caveTitle:"山洞遊戲",
+ caveDesc:"證明者話自己知道一句咒語,可以打開環形山洞入面嘅門。每一round,驗證者隨機嗌一邊叫佢行出嚟。唔識咒語嘅話,每round有50%機會穿崩 — 睇下呃人幾快變成冇可能。",
+ caveRun:"玩一round", caveRounds:"通過round數:", caveOdds:"全部靠呃嘅機率:",
+ caveConvinced:"信服 — 真係識咒語",
+ s2Title:"Hash 唔等於承諾",
+ s2P1:"Hash 係指紋:同一個輸入,永遠同一個輸出。呢種確定性正正就係問題 — 如果你個秘密得幾個可能,任何人都可以將每個候選都打個指紋,再同你嗰個對一對。",
+ s2P2:"承諾(commitment)喺 hash 之前混入一個一次性隨機數 r 嚟解決:c = H(r ‖ m)。噉樣個封印咩都唔會露(hiding),但你之後又反唔到口供(binding)。先封印,後公開。",
+ rpsTitle:"承諾-公開 包剪揼",
+ rpsDesc:"揀一手,用真嘅 SHA-256 承諾封印佢。對手見到你個封印先出手 — 然後你公開,個封印會被檢查。撳下出術掣,感受下 binding。",
+ rpsCommit:"封印 (Commit)", rpsReveal:"公開 & 驗證", rpsCheat:"偷偷改",
+ rpsYourMove:"你嗰手", rpsSees:"淨係見到 c =", rpsOppMove:"對手嗰手",
+ rpsValid:"封印有效", rpsInvalid:"封印爛咗 — 捉到出術",
+ rpsWhyRTitle:"點解隨機數 r 咁重要。",
+ rpsWhyR:"如果冇 r,淨係用 hash 封印,攻擊者將三隻手全部 hash 一次對比就搞掂。有咗 r,同樣嘅攻擊就要估中一個 256-bit 嘅數。",
+ rpsAttack:"攻擊淨 hash", rpsAttackNone:"請先封印一手",
+ rpsAttackOut:"即刻破解 → 你出咗 {m} (試咗3個hash)。有 r 嘅話:大約要試 2¹²⁸ 次。",
+ s3Title:"一條中學法則,撐起半個密碼學",
+ s3P1:"同底嘅冪相乘,指數就會相加。將數字收埋喺指數度,任何人都可以將封印版相乘 — 收埋嘅數字會自己加埋,冇人見到。呢個性質叫做同態(homomorphism)。",
+ homTitle:"加埋啲你見唔到嘅數",
+ homDesc:"拉下兩個收埋咗嘅數。左邊淨係將封印值相乘;右邊攞個結果同「和」嘅新封印對一對。",
+ homSealed:"封印咗嘅值", homCheck:"驗證者嘅檢查", homMatch:"吻合 — 總和驗證咗",
+ homCaption:"兩個封印嘅積 = 和嘅封印 — 任何 m₁、m₂ 都一樣成立。",
+ s3Note:"Pedersen 承諾同機密交易就係行呢套:區塊鏈一個金額都見唔到,但可以驗證收埋嘅金額係平衡(入 = 出)。",
+ s4Title:"一個真係好簡單嘅 ZKP",
+ s4P1:"主張:「我知道一個 x,令 x³ + x + 5 = 35。」將條式攤開做四條細等式 — 就係電路。填滿每條線嘅值叫做 witness。驗證者檢查嘅係等式,唔係計算過程 — 而且淨係見到公開輸出。",
+ cirTitle:"你揸得郁嘅四閘電路",
+ cirSecret:"秘密", cirTamper:"篤亂一條線 (假witness)",
+ proverSees:"證明者見到 (私密)", verifierSees:"驗證者見到 (公開)",
+ cirValid:"證明有效", cirInvalid:"拒絕",
+ s4Note:"真正嘅 SNARK 會將嗰啲綠剔全部壓縮成一個幾百byte嘅證明 — 驗證者一條線嘅值都唔使睇,一次過確認晒所有等式。",
+ s5Title:"護照例子",
+ s5P1:"你本護照塊芯片入面,本身已經有政府簽咗名嘅數據(ICAO 9303):個人資料(DG1)、相(DG2),仲有一個 SOD — 入面係全部嘢嘅hash,由國家簽名。",
+ s5Csca:"國家根密鑰,離線保管", s5Dsc:"文件簽名證書,定期更換",
+ s5Sod:"你啲數據嘅hash + 國家嘅簽名", signs:"簽名",
+ s5P2:"ZK 電路喺你部電話入面私下重做嗰個簽名檢查,然後淨係證明你揀嗰啲事實。國家嘅簽名經數學傳遞 — 唔使搵新嘅認證機構。",
+ ppTitle:"選擇性披露,即場玩",
+ ppDesc:"揀你想證明啲乜。左邊係你部電話;右邊係區塊鏈實際收到嘅嘢。轉下個服務,睇住 nullifier 點變 — 同一本護照,連唔埋嘅身份。",
+ ppAge:"證明 年齡 ≥ 19", ppExp:"證明 未過期", ppNat:"披露國籍",
+ ppScope:"服務:", ppPhone:"你部電話 (私密)", ppChain:"鏈上 (公開)",
+ ppName:"姓名", ppDob:"出生日期", ppNo:"護照號碼", ppNatL:"國籍", ppExpL:"到期日",
+ ppBadgeAge:"年齡 ≥ 19 ✓", ppBadgeExp:"未過期 ✓",
+ ppNullCap:"同一護照 + 同一服務 → 同一 nullifier (擋住重複註冊)。唔同服務 → 唔同 nullifier (擋住追蹤)。",
+ s5Note:"誠實講句:呢個淨係證明「持有有效護照數據」— 唔係證明本護照係你嘅。將文件同真人綁埋(認樣)係 ZK 數學以外嘅事。",
+ s6Title:"成本書變做 Python 偽代碼",
+ s6P1:"四段snippet,每段對應上面一個示範。重點寫晒喺註釋度;代碼故意寫到好悶。",
+ code1:"1 · 承諾 (點解淨hash會出事)",
+ code2:"2 · Pedersen — 指數法則實戰",
+ code3:"3 · 迷你電路同佢個 witness",
+ code4:"4 · 護照命題",
+ footer:"零知識證明互動小書 · hash 喺你個瀏覽器即場計 · 隨便分享。"
+},
+zh:{
+ nav1:"什么是 ZKP", nav2:"哈希与承诺", nav3:"指数魔法",
+ nav4:"迷你 ZKP", nav5:"护照示例", nav6:"Python 伪代码",
+ heroEyebrow:"互动小书", heroTitle:"证明它,\u00A0但什么都不透露.",
+ heroSub:"用可以亲手把玩的东西来理解零知识证明:封印的承诺、四个门的电路,以及一本永远不离开你手机的护照。",
+ heroPlaceholder:"输入一个秘密…", heroSeal:"封印",
+ heroCaption:"你的秘密,已用 SHA-256 封印。这个封印能做什么,正是本页要讲的内容。",
+ heroHint:"6 种语言 · 实时演示 · 无需数学学位",
+ try:"试一试", reset:"重置", you:"你 (证明者)", opponent:"对方 (验证者)",
+ s1Title:"什么是零知识证明?",
+ s1P1:"零知识证明能让人相信一个陈述为真 — 却不展示原因。「我知道密码。」「我年满19岁。」主张得到验证,秘密本身始终不出现。",
+ s1C1k:"完备性", s1C1:"如果陈述为真且你诚实执行,证明总能令人信服。",
+ s1C2k:"可靠性", s1C2:"如果陈述为假,再多花招也伪造不出令人信服的证明。",
+ s1C3k:"零知识", s1C3:"验证者只学到一个比特:「真」。秘密不泄露分毫。",
+ caveTitle:"山洞游戏",
+ caveDesc:"证明者声称知道能打开环形山洞深处大门的咒语。每一轮,验证者随机喊出让他走出的方向。不懂咒语的话,每轮有50%概率露馅 — 看看造假多快变得不可能。",
+ caveRun:"跑一轮", caveRounds:"通过轮数:", caveOdds:"全靠蒙混的概率:",
+ caveConvinced:"信服 — 确实知道咒语",
+ s2Title:"哈希不等于承诺",
+ s2P1:"哈希是指纹:同样的输入,永远同样的输出。这种确定性恰恰是问题所在 — 如果你的秘密只有几个可能值,任何人都可以给每个候选打上指纹,再与你的比对。",
+ s2P2:"承诺(commitment)在哈希前混入一次性随机数 r 来解决:c = H(r ‖ m)。这样封印什么都不透露(hiding),而你事后也无法改口(binding)。先承诺,后揭示。",
+ rpsTitle:"承诺-揭示 石头剪刀布",
+ rpsDesc:"选一手,用真实的 SHA-256 承诺封印它。对方看到封印后才出手 — 然后你揭示,封印被检验。按下作弊按钮,体会 binding 的含义。",
+ rpsCommit:"封印 (Commit)", rpsReveal:"揭示 & 验证", rpsCheat:"偷偷换牌",
+ rpsYourMove:"你的出手", rpsSees:"只看到 c =", rpsOppMove:"对方出手",
+ rpsValid:"封印有效", rpsInvalid:"封印破损 — 作弊被抓",
+ rpsWhyRTitle:"为什么随机数 r 很重要。",
+ rpsWhyR:"不加 r、只用裸哈希封印的话,攻击者把三种出手各哈希一次比对即可。有了 r,同样的攻击需要猜中一个 256 位的值。",
+ rpsAttack:"攻击裸哈希", rpsAttackNone:"请先封印一手",
+ rpsAttackOut:"瞬间破解 → 你出的是 {m} (只试了3个哈希)。若有 r:约需 2¹²⁸ 次。",
+ s3Title:"一条中学法则,撑起半个密码学",
+ s3P1:"同底幂相乘,指数相加。把数字藏进指数,任何人都能把封印版相乘 — 藏起来的数字会自己相加,无人看见。这个性质叫同态(homomorphism)。",
+ homTitle:"把看不见的数字加起来",
+ homDesc:"拖动两个隐藏的数字。左侧只对封印值做乘法;右侧把结果与「和」的新封印比对。",
+ homSealed:"封印的值", homCheck:"验证者的检查", homMatch:"吻合 — 总和已验证",
+ homCaption:"两个封印之积 = 和的封印 — 任何 m₁、m₂ 都成立。",
+ s3Note:"Pedersen 承诺与机密交易正是靠这个运转:区块链一个金额也看不到,却能验证隐藏金额的平衡(输入 = 输出)。",
+ s4Title:"一个真正简单的 ZKP",
+ s4P1:"主张:「我知道一个 x,使得 x³ + x + 5 = 35。」把公式摊开成四条小等式 — 这就是电路。填满每条线的值叫 witness。验证者检查的是等式而非计算过程 — 且只看到公开输出。",
+ cirTitle:"可以亲手驾驶的四门电路",
+ cirSecret:"秘密", cirTamper:"篡改一条线 (伪造witness)",
+ proverSees:"证明者所见 (私密)", verifierSees:"验证者所见 (公开)",
+ cirValid:"证明有效", cirInvalid:"已拒绝",
+ s4Note:"真正的 SNARK 会把那些绿勾全部压缩成一个几百字节的证明 — 验证者一个线值都不用看,就一次性确认所有等式。",
+ s5Title:"护照示例",
+ s5P1:"你的护照芯片本就带着政府签名的数据(ICAO 9303):个人信息(DG1)、照片(DG2),以及一个 SOD — 所有内容的哈希清单,由国家签名。",
+ s5Csca:"国家根密钥,离线保管", s5Dsc:"文件签名证书,定期轮换",
+ s5Sod:"你的数据哈希 + 国家的签名", signs:"签名",
+ s5P2:"ZK 电路在你手机里私密地重做那次签名检查,然后只证明你选择的事实。国家的签名沿着数学传递 — 无需任何新的权威机构。",
+ ppTitle:"选择性披露,实时体验",
+ ppDesc:"切换要证明的内容。左边是你的手机;右边是区块链实际收到的东西。切换服务,观察 nullifier 的变化 — 同一本护照,无法关联的身份。",
+ ppAge:"证明 年龄 ≥ 19", ppExp:"证明 未过期", ppNat:"披露国籍",
+ ppScope:"服务:", ppPhone:"你的手机 (私密)", ppChain:"链上 (公开)",
+ ppName:"姓名", ppDob:"出生日期", ppNo:"护照号", ppNatL:"国籍", ppExpL:"有效期至",
+ ppBadgeAge:"年龄 ≥ 19 ✓", ppBadgeExp:"未过期 ✓",
+ ppNullCap:"同一护照 + 同一服务 → 同一 nullifier (阻止重复注册)。不同服务 → 不同 nullifier (阻止跨服务追踪)。",
+ s5Note:"诚实的边界:这只证明「持有有效的护照数据」— 不证明护照是你的。把证件与真人绑定(人脸比对)是 ZK 数学之外的事。",
+ s6Title:"整本书的 Python 伪代码",
+ s6P1:"四段代码,与上面的演示一一对应。思想都写在注释里;代码刻意写得很无聊。",
+ code1:"1 · 承诺 (以及裸哈希为何失败)",
+ code2:"2 · Pedersen — 指数法则实战",
+ code3:"3 · 迷你电路与它的 witness",
+ code4:"4 · 护照命题",
+ footer:"零知识证明互动小书 · 哈希在你的浏览器中实时计算 · 欢迎分享。"
+},
+ja:{
+ nav1:"ZKPとは", nav2:"ハッシュとコミットメント", nav3:"指数法則の魔法",
+ nav4:"ミニZKP", nav5:"パスポート例", nav6:"Python擬似コード",
+ heroEyebrow:"インタラクティブな小さな本", heroTitle:"証明する。\u00A0何も明かさずに。",
+ heroSub:"ゼロ知識証明を、実際に触れるもので学びます:封印されたコミットメント、4ゲートの回路、そしてスマホから決して出ないパスポート。",
+ heroPlaceholder:"秘密を入力…", heroSeal:"封印する",
+ heroCaption:"あなたの秘密は SHA-256 で封印されました。この封印で何ができるか — それがこのページの内容です。",
+ heroHint:"6言語 · ライブデモ · 数学の学位は不要",
+ try:"やってみる", reset:"リセット", you:"あなた (証明者)", opponent:"相手 (検証者)",
+ s1Title:"ゼロ知識証明とは?",
+ s1P1:"ゼロ知識証明は、ある主張が真であることを — 理由を見せずに — 納得させます。「パスワードを知っている」「19歳以上だ」。主張は検証されますが、秘密そのものは最後まで現れません。",
+ s1C1k:"完全性", s1C1:"主張が真で、正直に振る舞えば、証明は必ず成功します。",
+ s1C2k:"健全性", s1C2:"主張が偽なら、どんな小細工でも説得力のある証明は作れません。",
+ s1C3k:"ゼロ知識性", s1C3:"検証者が得るのは「真」という1ビットだけ。秘密は一切漏れません。",
+ caveTitle:"洞窟ゲーム",
+ caveDesc:"環状の洞窟の奥にある扉を開く呪文を知っていると主張する証明者。毎ラウンド、検証者が出てくる側をランダムに叫びます。呪文を知らなければ各ラウンド50%で失敗 — ごまかしがどれほど速く不可能になるか見てください。",
+ caveRun:"1ラウンド実行", caveRounds:"通過ラウンド:", caveOdds:"すべてごまかせた確率:",
+ caveConvinced:"納得 — 呪文を知っている",
+ s2Title:"ハッシュはコミットメントではない",
+ s2P1:"ハッシュは指紋です:同じ入力なら、いつでも同じ出力。その決定性こそが問題です — 秘密の候補が少なければ、誰でも全候補の指紋を取って、あなたのものと照合できてしまいます。",
+ s2P2:"コミットメントは、ハッシュの前に一度きりの乱数 r を混ぜて解決します:c = H(r ‖ m)。封印は何も明かさず(hiding)、しかも後から言い分を変えられない(binding)。先に封印、後で公開。",
+ rpsTitle:"コミット・リビール じゃんけん",
+ rpsDesc:"手を選び、本物の SHA-256 コミットメントで封印します。相手は封印を見てから手を出し — その後あなたが公開し、封印が検査されます。チートボタンで binding を体感してください。",
+ rpsCommit:"封印 (Commit)", rpsReveal:"公開 & 検証", rpsCheat:"こっそり変える",
+ rpsYourMove:"あなたの手", rpsSees:"見えるのは c =", rpsOppMove:"相手の手",
+ rpsValid:"封印は有効", rpsInvalid:"封印が破損 — チート検出",
+ rpsWhyRTitle:"乱数 r が重要な理由。",
+ rpsWhyR:"r なしの生ハッシュで封印すると、攻撃者は3つの手をそれぞれハッシュして比較するだけ。r があれば、同じ攻撃に256ビットの値を当てる必要があります。",
+ rpsAttack:"生ハッシュを攻撃", rpsAttackNone:"先に手を封印してください",
+ rpsAttackOut:"即座に解読 → あなたの手は {m} (ハッシュ3回)。r があれば:約 2¹²⁸ 回必要。",
+ s3Title:"学校で習った法則ひとつが、暗号の半分を支える",
+ s3P1:"同じ底の累乗を掛けると、指数が足されます。数字を指数の位置に隠せば、誰でも封印版どうしを掛けられ — 隠された数字は見えないまま勝手に足し合わされます。この性質を準同型性(homomorphism)と呼びます。",
+ homTitle:"見えない数字を足す",
+ homDesc:"隠された2つの数字をスライドしてください。左パネルは封印値の掛け算だけ。右パネルはその結果を「和」の新しい封印と照合します。",
+ homSealed:"封印された値", homCheck:"検証者のチェック", homMatch:"一致 — 合計を検証",
+ homCaption:"2つの封印の積 = 和の封印。どんな m₁、m₂ でも常に成立します。",
+ s3Note:"Pedersen コミットメントと機密トランザクションはまさにこれで動きます:ブロックチェーンは金額を一つも見ずに、隠れた金額の収支(入力 = 出力)を検証します。",
+ s4Title:"本当にシンプルなZKP",
+ s4P1:"主張:「x³ + x + 5 = 35 を満たす x を知っている」。式を4つの小さな等式に展開したものが回路です。すべての配線を埋める値が witness。検証者は計算ではなく等式を検査し — 公開出力しか見ません。",
+ cirTitle:"自分で動かせる4ゲート回路",
+ cirSecret:"秘密", cirTamper:"配線を改ざん (偽のwitness)",
+ proverSees:"証明者に見えるもの (非公開)", verifierSees:"検証者に見えるもの (公開)",
+ cirValid:"証明は有効", cirInvalid:"拒否",
+ s4Note:"実際の SNARK では、あの緑のチェックすべてが数百バイトの証明ひとつに圧縮されます — 検証者は配線の値を一つも見ずに、全等式を一度に確認します。",
+ s5Title:"パスポートの例",
+ s5P1:"パスポートのチップには、政府が署名したデータが最初から入っています(ICAO 9303):個人情報(DG1)、写真(DG2)、そして全体のハッシュに国家が署名したセキュリティオブジェクト(SOD)。",
+ s5Csca:"国家ルート鍵、オフライン保管", s5Dsc:"文書署名証明書、定期的に交換",
+ s5Sod:"あなたのデータのハッシュ + 国家の署名", signs:"署名",
+ s5P2:"ZK 回路はその署名検証をスマホの中で非公開にやり直し、あなたが選んだ事実だけを証明します。国家の署名が数学を通って伝わる — 新しい認証機関は不要です。",
+ ppTitle:"選択的開示、ライブで",
+ ppDesc:"証明する項目を切り替えてください。左はあなたのスマホ、右はブロックチェーンが実際に受け取るもの。サービスを切り替えて nullifier の変化を見てください — 同じパスポート、結び付けられない身元。",
+ ppAge:"年齢 ≥ 19 を証明", ppExp:"有効期限内を証明", ppNat:"国籍を開示",
+ ppScope:"サービス:", ppPhone:"あなたのスマホ (非公開)", ppChain:"オンチェーン (公開)",
+ ppName:"氏名", ppDob:"生年月日", ppNo:"旅券番号", ppNatL:"国籍", ppExpL:"有効期限",
+ ppBadgeAge:"年齢 ≥ 19 ✓", ppBadgeExp:"期限内 ✓",
+ ppNullCap:"同じパスポート + 同じサービス → 同じ nullifier(重複登録を防止)。別のサービス → 別の nullifier(追跡を防止)。",
+ s5Note:"正直な限界:これは「有効なパスポートデータの所持」を証明するだけで、そのパスポートがあなたのものだとは証明しません。文書と本人を結びつける作業(顔照合)は ZK の数学の外側にあります。",
+ s6Title:"本全体を Python 擬似コードで",
+ s6P1:"上のデモと一つずつ対応する4つのスニペット。アイデアはコメントに、コードはあえて退屈に。",
+ code1:"1 · コミットメント (生ハッシュが失敗する理由)",
+ code2:"2 · Pedersen — 指数法則の実践",
+ code3:"3 · ミニ回路とその witness",
+ code4:"4 · パスポートの命題",
+ footer:"ゼロ知識証明のインタラクティブな小さな本 · ハッシュはブラウザ内でライブ計算 · ご自由に共有ください。"
+},
+cs:{
+ nav1:"Co je ZKP", nav2:"Hash vs. závazek", nav3:"Kouzlo exponentů",
+ nav4:"Miniaturní ZKP", nav5:"Pas", nav6:"Python pseudokód",
+ heroEyebrow:"Interaktivní knížečka", heroTitle:"Dokázat.\u00A0Nic neprozradit.",
+ heroSub:"Důkazy s nulovou znalostí vysvětlené na věcech, na které si můžete sáhnout: zapečetěné závazky, obvod o čtyřech hradlech a pas, který nikdy neopustí váš telefon.",
+ heroPlaceholder:"napište tajemství…", heroSeal:"Zapečetit",
+ heroCaption:"vaše tajemství, zapečetěné pomocí SHA-256. Co všechno se s takovou pečetí dá dělat — o tom je celá tato stránka.",
+ heroHint:"6 jazyků · živé ukázky · titul z matematiky netřeba",
+ try:"vyzkoušejte", reset:"Reset", you:"vy (dokazovatel)", opponent:"protistrana (ověřovatel)",
+ s1Title:"Co je důkaz s nulovou znalostí?",
+ s1P1:"Důkaz s nulovou znalostí přesvědčí druhou stranu, že tvrzení platí — aniž by ukázal proč. „Znám heslo.“ „Je mi přes 19.“ Tvrzení se ověří; tajemství samotné se nikdy neobjeví.",
+ s1C1k:"Úplnost", s1C1:"Pokud tvrzení platí a hrajete poctivě, důkaz vždy přesvědčí.",
+ s1C2k:"Korektnost", s1C2:"Pokud tvrzení neplatí, žádný trik věrohodný důkaz nevytvoří.",
+ s1C3k:"Nulová znalost", s1C3:"Ověřovatel se dozví přesně jeden bit: „pravda“. Z tajemství neunikne nic.",
+ caveTitle:"Hra na jeskyni",
+ caveDesc:"Dokazovatel tvrdí, že zná kouzelné slovo otevírající dveře uvnitř kruhové jeskyně. V každém kole ověřovatel náhodně zvolá, kterou stranou má vyjít. Bez kouzelného slova každé kolo selže s pravděpodobností 50 %. Sledujte, jak rychle se podvádění stane nemožným.",
+ caveRun:"Spustit kolo", caveRounds:"prošlá kola:", caveOdds:"šance všechna prošvindlovat:",
+ caveConvinced:"PŘESVĚDČEN — SLOVO ZNÁ",
+ s2Title:"Hash není závazek",
+ s2P1:"Hash je otisk prstu: stejný vstup, stejný výstup, pokaždé. Právě tato determinističnost je problém — má-li vaše tajemství jen pár možných hodnot, kdokoli si může otisknout všechny kandidáty a porovnat je s tím vaším.",
+ s2P2:"Závazek (commitment) to řeší přimícháním jednorázové náhodné hodnoty r před hashováním: c = H(r ‖ m). Pečeť teď nic neprozrazuje (hiding) — a přesto později nemůžete změnit názor (binding). Nejdřív zapečetit, pak odhalit.",
+ rpsTitle:"Kámen · nůžky · papír se závazkem",
+ rpsDesc:"Vyberte tah a zapečeťte ho skutečným závazkem SHA-256. Protistrana táhne až poté, co vidí vaši pečeť — pak odhalíte a pečeť se zkontroluje. Zkuste tlačítko podvodu a pocítíte binding.",
+ rpsCommit:"Zapečetit", rpsReveal:"Odhalit a ověřit", rpsCheat:"Zkusit podvod",
+ rpsYourMove:"váš tah", rpsSees:"vidí jen c =", rpsOppMove:"jejich tah",
+ rpsValid:"PEČEŤ PLATÍ", rpsInvalid:"PEČEŤ PORUŠENA — PODVOD ODHALEN",
+ rpsWhyRTitle:"Proč na náhodném r záleží.",
+ rpsWhyR:"Zapečetíte-li tah holým hashem — bez r — útočník prostě zahashuje všechny tři tahy a porovná je. S r musí tentýž útok uhodnout 256bitovou hodnotu.",
+ rpsAttack:"Zaútočit na holý hash", rpsAttackNone:"nejdřív zapečeťte tah",
+ rpsAttackOut:"prolomeno okamžitě → váš tah je {m} (3 hashe). S r: ~2¹²⁸ pokusů.",
+ s3Title:"Jedno školní pravidlo pohání půlku kryptografie",
+ s3P1:"Násobení mocnin o stejném základu sčítá exponenty. Schovejte číslo do exponentu a kdokoli může zapečetěné verze násobit — skrytá čísla se sečtou sama, neviděna. Této vlastnosti se říká homomorfismus.",
+ homTitle:"Sečtěte čísla, která nevidíte",
+ homDesc:"Posouvejte dvě skrytá čísla. Levý panel jen násobí zapečetěné hodnoty; pravý panel výsledek porovná s čerstvou pečetí součtu.",
+ homSealed:"zapečetěné hodnoty", homCheck:"kontrola ověřovatele", homMatch:"SHODA — SOUČTY OVĚŘENY",
+ homCaption:"součin dvou pečetí = pečeť součtu — pokaždé, pro libovolná m₁, m₂.",
+ s3Note:"Přesně na tomhle běží Pedersenovy závazky a důvěrné transakce: blockchain ověří, že skryté částky sedí (vstupy = výstupy), aniž by jedinou částku viděl.",
+ s4Title:"Opravdu jednoduchý ZKP",
+ s4P1:"Tvrzení: „Znám x takové, že x³ + x + 5 = 35.“ Rozviňte vzorec do čtyř drobných rovnic — to je obvod. Hodnoty, které vyplní všechny dráty, se nazývají witness. Ověřovatel kontroluje rovnice, ne výpočet — a vidí jen veřejný výstup.",
+ cirTitle:"Obvod o čtyřech hradlech na hraní",
+ cirSecret:"tajemství", cirTamper:"zmanipulovat drát (falešný witness)",
+ proverSees:"dokazovatel vidí (soukromé)", verifierSees:"ověřovatel vidí (veřejné)",
+ cirValid:"DŮKAZ PLATÍ", cirInvalid:"ZAMÍTNUTO",
+ s4Note:"Ve skutečném SNARKu se všechny ty zelené kontroly stlačí do jednoho krátkého důkazu — pár set bajtů — takže ověřovatel potvrdí všechny rovnice najednou, aniž by viděl jedinou hodnotu drátu.",
+ s5Title:"Příklad s pasem",
+ s5P1:"Čip vašeho pasu už nese státem podepsaná data (ICAO 9303): osobní údaje (DG1), fotografii (DG2) a bezpečnostní objekt (SOD) s hashem všeho, podepsaný státem.",
+ s5Csca:"kořenový klíč státu, uchováván offline", s5Dsc:"podpisový certifikát dokumentů, pravidelně obměňován",
+ s5Sod:"hashe vašich dat + podpis státu", signs:"podepisuje",
+ s5P2:"ZK obvod tu kontrolu podpisu soukromě zopakuje ve vašem telefonu a pak dokáže jen fakta, která si vyberete. Podpis státu projde matematikou — žádná nová autorita není potřeba.",
+ ppTitle:"Selektivní odhalení naživo",
+ ppDesc:"Přepínejte, co dokázat. Vlevo je váš telefon; vpravo to, co blockchain skutečně dostane. Přepněte službu a sledujte, jak se mění nullifier — stejný pas, nepropojitelné identity.",
+ ppAge:"dokázat věk ≥ 19", ppExp:"dokázat platnost", ppNat:"odhalit národnost",
+ ppScope:"služba:", ppPhone:"váš telefon (soukromé)", ppChain:"on-chain (veřejné)",
+ ppName:"jméno", ppDob:"datum narození", ppNo:"číslo pasu", ppNatL:"národnost", ppExpL:"platnost do",
+ ppBadgeAge:"věk ≥ 19 ✓", ppBadgeExp:"platný ✓",
+ ppNullCap:"stejný pas + stejná služba → stejný nullifier (blokuje duplicity). Jiná služba → jiný nullifier (blokuje sledování).",
+ s5Note:"Poctivá mez: tohle dokazuje držení platných pasových dat — ne že je pas váš. Svázání dokladu s člověkem (porovnání obličeje) leží mimo matematiku ZK.",
+ s6Title:"Celá knížka v Python pseudokódu",
+ s6P1:"Čtyři úryvky, každý odpovídá jedné ukázce výše. Myšlenky nesou komentáře; kód je schválně nudný.",
+ code1:"1 · Závazek (a proč holý hash selže)",
+ code2:"2 · Pedersen — pravidlo exponentů v akci",
+ code3:"3 · Miniaturní obvod a jeho witness",
+ code4:"4 · Pasové tvrzení",
+ footer:"Interaktivní knížečka o důkazech s nulovou znalostí · hashe se počítají živě ve vašem prohlížeči · sdílejte volně."
+}};
+
+let L = "en";
+function tr(k){ return (T[L] && T[L][k]) || T.en[k] || k; }
+function applyLang(){
+  document.querySelectorAll("[data-i18n]").forEach(el=>{ el.textContent = tr(el.dataset.i18n); });
+  document.querySelectorAll("[data-i18n-ph]").forEach(el=>{ el.placeholder = tr(el.dataset.i18nPh); });
+  document.documentElement.lang = L==="yue" ? "zh-HK" : L;
+  document.querySelectorAll(".langs button").forEach(b=>b.classList.toggle("on", b.dataset.lang===L));
+  renderCave(); renderRps(); renderHom(); renderCircuit(); renderPassport();
+}
+document.querySelectorAll(".langs button").forEach(b=>{
+  b.addEventListener("click", ()=>{ L=b.dataset.lang; applyLang(); });
+});
+
+/* =============== helpers =============== */
+async function sha256hex(str){
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str));
+  return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,"0")).join("");
+}
+function randHex(n){ const a=new Uint8Array(n); crypto.getRandomValues(a);
+  return [...a].map(b=>b.toString(16).padStart(2,"0")).join(""); }
+function short(h,n=10){ return h ? h.slice(0,n)+"…" : "—"; }
+function stamp(el, ok, text){
+  el.innerHTML = `<span class="stamp ${ok?"":"bad"} go">${ok?"✓":"✕"} ${text}</span>`;
+}
+
+/* =============== hero =============== */
+document.getElementById("heroSeal").addEventListener("click", async ()=>{
+  const v = document.getElementById("heroSecret").value || "hello";
+  const h = await sha256hex(randHex(16)+v);
+  document.getElementById("heroChip").textContent = "c = "+short(h,16);
+  document.getElementById("heroOut").style.display = "flex";
+});
+
+/* =============== cave =============== */
+let caveN = 0;
+function renderCave(){
+  document.getElementById("caveN").textContent = caveN;
+  const o = document.getElementById("caveOddsV");
+  o.textContent = caveN===0 ? "—" : "1 / "+(caveN>50?("2^"+caveN):Math.pow(2,caveN).toLocaleString());
+  const s = document.getElementById("caveStamp");
+  if(caveN>=10){ stamp(s,true,tr("caveConvinced")); } else { s.innerHTML=""; }
+}
+document.getElementById("caveRun").addEventListener("click", ()=>{ caveN=Math.min(caveN+1,60); renderCave(); });
+document.getElementById("caveReset").addEventListener("click", ()=>{ caveN=0; renderCave(); });
+
+/* =============== rps =============== */
+const MOVES=["🪨","📄","✂️"];
+let rps = {m:null, r:null, c:null, opp:null, done:false, cheated:false};
+function renderRps(){
+  document.querySelectorAll("#rpsMoves button").forEach(b=>
+    b.classList.toggle("sel", +b.dataset.m===rps.m));
+  document.getElementById("rpsMyMove").textContent = rps.m===null?"—":MOVES[rps.m];
+  document.getElementById("rpsR").textContent = rps.r? short(rps.r,10) : "—";
+  document.getElementById("rpsC").textContent = rps.c? short(rps.c,12) : "—";
+  document.getElementById("rpsOpp").textContent = rps.opp===null?"—":MOVES[rps.opp];
+  document.getElementById("rpsCommit").disabled = rps.m===null || !!rps.c;
+  document.getElementById("rpsReveal").disabled = !rps.c || rps.done;
+  document.getElementById("rpsCheat").disabled = !rps.c || rps.done;
+  if(!rps.done) document.getElementById("rpsStamp").innerHTML="";
+}
+document.querySelectorAll("#rpsMoves button").forEach(b=>{
+  b.addEventListener("click", ()=>{ if(rps.c) return; rps.m=+b.dataset.m; renderRps(); });
+});
+document.getElementById("rpsCommit").addEventListener("click", async ()=>{
+  rps.r = randHex(16);
+  rps.c = await sha256hex(rps.r + MOVES[rps.m]);
+  rps.opp = Math.floor(Math.random()*3);
+  renderRps();
+});
+document.getElementById("rpsCheat").addEventListener("click", ()=>{
+  if(rps.opp===null) return;
+  rps.m = (rps.opp+1)%3; /* switch to the winning move */
+  rps.cheated = true; renderRps();
+});
+document.getElementById("rpsReveal").addEventListener("click", async ()=>{
+  const check = await sha256hex(rps.r + MOVES[rps.m]);
+  const ok = check === rps.c;
+  rps.done = true; renderRps();
+  stamp(document.getElementById("rpsStamp"), ok, ok?tr("rpsValid"):tr("rpsInvalid"));
+});
+document.getElementById("rpsReset").addEventListener("click", ()=>{
+  rps={m:null,r:null,c:null,opp:null,done:false,cheated:false};
+  document.getElementById("rpsAttackOut").textContent="";
+  renderRps();
+});
+document.getElementById("rpsAttack").addEventListener("click", async ()=>{
+  const out = document.getElementById("rpsAttackOut");
+  if(rps.m===null){ out.textContent = tr("rpsAttackNone"); return; }
+  const bare = await sha256hex(MOVES[rps.m]);        /* victim used no r */
+  for(const mv of MOVES){
+    if(await sha256hex(mv) === bare){
+      out.textContent = tr("rpsAttackOut").replace("{m}", mv); break;
+    }
+  }
+});
+
+/* =============== homomorphism =============== */
+const G=5n, P=1009n;
+function modpow(b,e,m){ let r=1n; b%=m; while(e>0n){ if(e&1n) r=r*b%m; b=b*b%m; e>>=1n; } return r; }
+function renderHom(){
+  const m1=BigInt(document.getElementById("homM1").value);
+  const m2=BigInt(document.getElementById("homM2").value);
+  document.getElementById("homM1v").textContent=m1;
+  document.getElementById("homM2v").textContent=m2;
+  const c1=modpow(G,m1,P), c2=modpow(G,m2,P);
+  const prod=c1*c2%P, direct=modpow(G,m1+m2,P);
+  document.getElementById("homC1").textContent=c1;
+  document.getElementById("homC2").textContent=c2;
+  document.getElementById("homProd").textContent=prod;
+  document.getElementById("homDirect").textContent=direct;
+  stamp(document.getElementById("homStamp"), prod===direct, tr("homMatch"));
+}
+["homM1","homM2"].forEach(id=>document.getElementById(id).addEventListener("input", renderHom));
+
+/* =============== circuit =============== */
+function renderCircuit(){
+  const x=+document.getElementById("cirX").value;
+  const tamper=document.getElementById("cirTamper").checked;
+  document.getElementById("cirXv").textContent=x;
+  const w1=x*x, w2t=w1*x, w2=tamper?w2t+1:w2t, w3=w2+x, out=w3+5;
+  const set=(id,txt)=>{document.getElementById(id).textContent=txt};
+  set("g1v",`= ${w1}`); set("g2v",`= ${w2}`); set("g3v",`= ${w3}`); set("g4v",`= ${out}`);
+  const checks=[[ "g1", w1===x*x ],[ "g2", w2===w1*x ],[ "g3", w3===w2+x ],[ "g4", out===w3+5 ]];
+  checks.forEach(([id,ok])=>{
+    const g=document.getElementById(id);
+    g.classList.toggle("pass",ok); g.classList.toggle("fail",!ok);
+    g.querySelector(".chk").textContent = ok?"✓":"✕";
+  });
+  document.getElementById("cirWitness").textContent=`(1, ${x}, ${out}, ${w1}, ${w2}, ${w3})`;
+  document.getElementById("cirOut").textContent=out;
+  const allOk = checks.every(c=>c[1]) && out===35;
+  stamp(document.getElementById("cirStamp"), allOk, allOk?tr("cirValid"):tr("cirInvalid"));
+}
+document.getElementById("cirX").addEventListener("input", renderCircuit);
+document.getElementById("cirTamper").addEventListener("change", renderCircuit);
+
+/* =============== passport =============== */
+async function renderPassport(){
+  const age=document.getElementById("ppAge").checked;
+  const exp=document.getElementById("ppExp").checked;
+  const nat=document.getElementById("ppNat").checked;
+  const scope=document.getElementById("ppScope").value;
+  const badges=document.getElementById("ppBadges");
+  badges.innerHTML="";
+  const addBadge=(txt)=>{ const s=document.createElement("span");
+    s.className="chip pub"; s.innerHTML=`<span class="dot"></span>${txt}`; badges.appendChild(s); };
+  if(age) addBadge(tr("ppBadgeAge"));
+  if(exp) addBadge(tr("ppBadgeExp"));
+  document.getElementById("ppNatOut").innerHTML =
+    nat ? "KOR" : '<span class="redact" style="width:40px"></span>';
+  const nul = await sha256hex("M12345678|1990-03-15|"+scope);
+  document.getElementById("ppNull").textContent = "0x"+short(nul,14);
+  document.getElementById("ppNullCap").textContent = tr("ppNullCap");
+}
+["ppAge","ppExp","ppNat"].forEach(id=>
+  document.getElementById(id).addEventListener("change", renderPassport));
+document.getElementById("ppScope").addEventListener("change", renderPassport);
+
+/* =============== init =============== */
+applyLang();
+</script>
+</body>
+</html>

@@ -1,0 +1,20 @@
+{
+  "shopName": "Causeway Books",
+  "shopNameCzech": "Knihkupectví u Mostu",
+  "tagline": "Interactive little books, kept the old way.",
+  "shelfOrder": ["Cryptography", "Machine Learning", "New Arrivals"],
+  "books": {
+    "zkp-little-book": {
+      "shelf": "Cryptography",
+      "blurb": "A pocket course in zero-knowledge proofs — prove you know a secret without whispering a word of it."
+    },
+    "tss_wallet": {
+      "shelf": "Cryptography",
+      "blurb": "How threshold signatures split a private key into many hands — and why no single hand can spend."
+    },
+    "tensor-shape-quest": {
+      "shelf": "Machine Learning",
+      "blurb": "From batches to transformers — follow tensor shapes through every layer of a deep network."
+    }
+  }
+}

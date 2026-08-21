@@ -1,0 +1,17 @@
+{
+  "name": "causeway-books",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A Prague-bookshop-style shelf for the interactive books in html/",
+  "scripts": {
+    "build": "tsx src/build.ts",
+    "serve": "tsx src/serve.ts",
+    "start": "tsx src/build.ts && tsx src/serve.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}
