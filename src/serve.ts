@@ -56,5 +56,5 @@ const server = createServer(async (req, res) => {
 
 server.listen(PORT, async () => {
   await writeFile(path.join(ROOT, ".server.pid"), String(process.pid), "utf8");
-  console.log(`Causeway Books open at http://localhost:${PORT}`);
+  console.log(`Causewaybay Books open at http://localhost:${PORT}`);
 });

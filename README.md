@@ -1,4 +1,4 @@
-# Causeway Books — Knihkupectví u Mostu
+# Causewaybay Books — Knihkupectví u Mostu
 
 A Prague-antiquarian-bookshop shelf for the interactive books in `html/`. A TypeScript
 generator scans that folder at build time and turns every `.html` file into a
