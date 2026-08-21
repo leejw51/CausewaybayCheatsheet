@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
   "type": "module",
   "description": "A Prague-bookshop-style shelf for the interactive books in html/",
   "scripts": {
